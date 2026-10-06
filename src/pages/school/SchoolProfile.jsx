@@ -5,7 +5,11 @@ import profileOptions from "../../../dropdown/School_module/profile.json";
 import { Button, Input, Select } from "@cloudstrytech/ui-components";
 import { toOptions } from "../../lib/selectOptions";
 import styles from "./styles/SchoolProfile.module.css";
-import { saveSchoolProfile } from "../../services/schoolProfileService";
+import {
+  getSchoolProfile,
+  saveSchoolProfile,
+  updateSchoolProfile,
+} from "../../services/schoolProfileService";
 import { useImageUpload } from "../../lib/useImageUpload";
 import { validateFields } from "../../lib/textValidation";
 import {
@@ -215,6 +219,79 @@ const SchoolProfile = () => {
     addressLane2: "",
   });
 
+  // Edit mode when a profile id exists; the fetched profile is kept as the
+  // base for UPDATE so backend fields the form doesn't edit are preserved.
+  const [schoolProfileId, setSchoolProfileId] = useState(
+    () => localStorage.getItem("schoolProfileId") || null,
+  );
+  const [loadedProfile, setLoadedProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(
+    () => !!localStorage.getItem("schoolProfileId"),
+  );
+  const [profileLoadFailed, setProfileLoadFailed] = useState(false);
+
+  useEffect(() => {
+    const storedId = localStorage.getItem("schoolProfileId");
+    if (!storedId) return;
+
+    let cancelled = false;
+    getSchoolProfile(storedId)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setLoadedProfile(data);
+        const has = (v) => v !== undefined && v !== null && v !== "";
+        const mapped = {
+          companyName: data.schoolName,
+          sector: data.sector,
+          board: data.board,
+          medium: data.medium,
+          level: data.level,
+          industry: data.industry,
+          aboutInstitute: data.description,
+          establishedYear: has(data.establishedYear)
+            ? String(data.establishedYear)
+            : undefined,
+          email: data.contact?.email,
+          phone: data.contact?.phone,
+          website: data.contact?.website,
+          postalCode: data.address?.pinCode,
+          city: data.address?.city,
+          state: data.address?.state,
+          country: data.address?.country,
+          linkedin: data.socialLinks?.linkedin,
+          facebook: data.socialLinks?.facebook,
+          twitter: data.socialLinks?.twitter,
+        };
+        setFormData((prev) => {
+          const next = { ...prev };
+          Object.entries(mapped).forEach(([key, value]) => {
+            if (has(value)) next[key] = value;
+          });
+          return next;
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if (error?.response?.status === 404) {
+          // Unknown id → stay in create mode. The stored id is left alone so a
+          // refresh can retry (the async projection may not have caught up yet);
+          // a successful CREATE overwrites it.
+          setSchoolProfileId(null);
+        } else {
+          console.error("Failed to load school profile:", error);
+          setProfileLoadFailed(true);
+          alert("Failed to load profile.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -282,8 +359,10 @@ const SchoolProfile = () => {
       schoolAdminId: String(currentUser.id),
       schoolName: formData.companyName,
       sector: formData.sector,
-      schoolType: "Private",
-      affiliationStatus: "Affiliated",
+      // No form inputs exist for these yet: keep backend values on edit,
+      // fall back to the existing create-time defaults otherwise.
+      schoolType: loadedProfile?.schoolType ?? "Private",
+      affiliationStatus: loadedProfile?.affiliationStatus ?? "Affiliated",
 
       board: formData.board,
       medium: formData.medium,
@@ -315,9 +394,43 @@ const SchoolProfile = () => {
     console.log("Board =", payload.board);
     console.log("Level =", payload.level);
     console.log("Payload =", JSON.stringify(payload, null, 2));
+    if (profileLoading) return;
+    if (schoolProfileId && profileLoadFailed) {
+      alert("Profile could not be loaded. Please refresh before saving.");
+      return;
+    }
     try {
+      if (schoolProfileId) {
+        // UPDATE: complete SchoolProfile, fetched profile as base so fields
+        // the form doesn't edit (logoUrl, fullAddress, ...) survive.
+        const updatePayload = {
+          ...loadedProfile,
+          ...payload,
+          contact: { ...loadedProfile?.contact, ...payload.contact },
+          address: { ...loadedProfile?.address, ...payload.address },
+          socialLinks: {
+            ...loadedProfile?.socialLinks,
+            ...payload.socialLinks,
+          },
+          schoolProfileId,
+        };
+        const response = await updateSchoolProfile(updatePayload);
+        console.log("API Response:", response);
+        // 202 CommandAccepted — processed asynchronously; keep what we sent
+        // as the base for any further saves on this page.
+        setLoadedProfile(updatePayload);
+        alert(response?.data?.message || "Profile update submitted successfully!");
+        return;
+      }
+
       const response = await saveSchoolProfile(payload);
       console.log("API Response:", response);
+      const newSchoolProfileId = response?.data?.schoolProfileId;
+      if (newSchoolProfileId) {
+        localStorage.setItem("schoolProfileId", newSchoolProfileId);
+        setSchoolProfileId(newSchoolProfileId);
+        setLoadedProfile({ ...payload, schoolProfileId: newSchoolProfileId });
+      }
       alert("Profile saved successfully!");
     } catch (error) {
       console.error("API Error:", error);
@@ -1235,8 +1348,9 @@ const SchoolProfile = () => {
                 type="submit"
                 variant="filled"
                 startIcon="saveIcon"
+                disabled={profileLoading}
               >
-                Save Changes
+                {profileLoading ? "Loading..." : "Save Changes"}
               </Button>
             </div>
           </div>
