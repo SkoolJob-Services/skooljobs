@@ -26,3 +26,6 @@ dist-ssr
 # Vite cache
 .vite/
 
+# Test reports (npm run test:ci)
+reports/
+
