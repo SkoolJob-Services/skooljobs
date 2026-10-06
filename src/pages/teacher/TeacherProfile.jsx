@@ -31,6 +31,7 @@ import styles from "./styles/TeacherProfile.module.css";
 import { toOptions, toOptionsMap } from "../../lib/selectOptions";
 import { useImageUpload } from "../../lib/useImageUpload";
 import { validateText, validateFields } from "../../lib/textValidation";
+import { saveTeacher } from "../../services/teacherprofileService";
 
 const { coursesByDegree: coursesByDegreeRaw, ...qualificationOptionsFlatRaw } =
   qualificationOptionsRaw;
@@ -74,6 +75,26 @@ const BIRTH_YEARS = Array.from({ length: 83 }, (_, i) =>
 const birthYearOptions = toOptions(BIRTH_YEARS);
 
 const OTHER_VALUE = "Other";
+
+// UI dropdown labels (dropdown/Teacher_module/*.json) -> generated SDK enum literals
+// (@teacherprofile/teacher-api). The backend rejects unrecognized enum values, so
+// values collected via the human-friendly dropdowns must be translated before send.
+const LANGUAGE_PROFICIENCY_MAP = {
+  "Native Speaker": "Native",
+  "Fluency enough to teach": "Fluent",
+  "Professional Working Proficiency": "Intermediate",
+  "Basic Knowledge": "Beginner",
+};
+
+const QUALIFICATION_CLASS_LEVEL_MAP = {
+  "Secondary (10th)": "Class 10",
+  "Senior Secondary (12th)": "Class 12",
+};
+
+const QUALIFICATION_MODE_MAP = {
+  "Part Time": "Part-time",
+  "Distance Learning": "Distance",
+};
 
 const navItems = [
   { id: "basic", label: "My Profile", icon: User },
@@ -1295,7 +1316,127 @@ const TeacherProfile = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const buildTeacherPayload = () => {
+    const dob =
+      teacherData.dobDay && teacherData.dobMonth && teacherData.dobYear
+        ? {
+            day: Number(teacherData.dobDay),
+            month: Number(teacherData.dobMonth),
+            year: Number(teacherData.dobYear),
+          }
+        : undefined;
+
+    const classesTaught = [
+      effectiveValue(teacherData.classTaughtOne, teacherData.classTaughtOneOther),
+      effectiveValue(teacherData.classTaughtTwo, teacherData.classTaughtTwoOther),
+    ].filter(Boolean);
+
+    const languages = dynamicLanguages
+      .filter((lang) => effectiveLanguage(lang))
+      .map((lang) => ({
+        language: effectiveLanguage(lang),
+        proficiency: LANGUAGE_PROFICIENCY_MAP[lang.status] || lang.status,
+      }));
+
+    const qualifications = savedQualifications.map((q) => ({
+      class_level: q.classLevel
+        ? QUALIFICATION_CLASS_LEVEL_MAP[q.classLevel] || q.classLevel
+        : null,
+      school_name: q.school || null,
+      degree: effectiveValue(q.degree, q.degreeOther),
+      course: effectiveValue(q.course, q.courseOther) || null,
+      year_passed: q.year,
+      medium: effectiveValue(q.medium, q.mediumOther) || null,
+      mode: q.mode ? QUALIFICATION_MODE_MAP[q.mode] || q.mode : undefined,
+      percentage: q.percentage || null,
+      university: effectiveValue(q.university, q.universityOther) || null,
+      college: effectiveValue(q.college, q.collegeOther) || null,
+    }));
+
+    const experiences = savedExperiences.map((e) => ({
+      school_name: e.school,
+      is_current_employer: e.currentEmployer,
+      board: effectiveValue(e.board, e.boardOther) || null,
+      start_date: e.startDate || undefined,
+      end_date: e.endDate || null,
+      main_subject: effectiveValue(e.mainSubject, e.mainSubjectOther) || undefined,
+      other_subjects: effectiveValue(e.otherSubjects, e.otherSubjectsOther) || null,
+      post_held: effectiveValue(e.post, e.postOther),
+      salary_ctc_annual: e.salary ? Number(e.salary) : null,
+      monthly_take_home: e.monthlyTakeHome ? Number(e.monthlyTakeHome) : null,
+      reason_for_leaving: effectiveValue(e.reason, e.reasonOther) || null,
+      details: e.details || null,
+    }));
+
+    const achievements = [
+      ...savedAwards.map((a) => ({
+        category: "award",
+        type: a.type || undefined,
+        name: a.name,
+        issued_by: a.by || undefined,
+        year: a.year || undefined,
+      })),
+      ...savedCourses.map((c) => ({
+        category: "course",
+        type: c.type || undefined,
+        name: c.name,
+        issued_by: c.by || undefined,
+        year: c.year || undefined,
+      })),
+    ];
+
+    const payload = {
+      title: teacherData.title || undefined,
+      first_name: teacherData.firstName,
+      middle_name: teacherData.middleName || null,
+      last_name: teacherData.lastName,
+      dob,
+      age: teacherData.age ? Number(teacherData.age) : null,
+      nationality: teacherData.nationality || undefined,
+      current_job_title:
+        effectiveValue(teacherData.currentJob, teacherData.currentJobOther) ||
+        null,
+      main_subject: effectiveValue(
+        teacherData.mainSubject,
+        teacherData.mainSubjectOther,
+      ),
+      additional_subjects: selectedAdditionalSubjects,
+      classes_taught: classesTaught,
+      languages,
+      highest_qualification_1:
+        effectiveValue(
+          teacherData.highestQualificationOne,
+          teacherData.highestQualificationOneOther,
+        ) || null,
+      highest_qualification_2:
+        effectiveValue(
+          teacherData.highestQualificationTwo,
+          teacherData.highestQualificationTwoOther,
+        ) || null,
+      profile_photo_url: profileImage || null,
+      summary: teacherData.briefWriteUp || null,
+      contact: {
+        mobile: teacherData.mobile,
+        whatsapp: teacherData.whatsapp || null,
+        same_as_mobile: teacherData.sameAsMobile,
+        primary_email: teacherData.primaryEmail,
+        secondary_email: teacherData.secondaryEmail || null,
+      },
+      address: {
+        pin_code: teacherData.pinCode || null,
+        city: teacherData.city || null,
+        state: teacherData.state || null,
+        full_address: teacherData.address || null,
+      },
+      qualifications,
+      experiences,
+      achievements,
+    };
+
+    return payload;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (activeSection === "qualification" && showQualificationForm) {
       if (saveQualificationDraft()) alert("Qualification saved successfully");
@@ -1334,7 +1475,45 @@ const TeacherProfile = () => {
       console.error("Error saving profile to localStorage:", err);
     }
 
-    alert("Profile saved successfully");
+    try {
+      // TEMPORARY DEBUG LOGGING — remove after root cause is confirmed.
+      console.log(
+        "TEACHER PAYLOAD DEBUG — raw state values:",
+        {
+          firstName: teacherData.firstName,
+          middleName: teacherData.middleName,
+          lastName: teacherData.lastName,
+          currentJob: teacherData.currentJob,
+          currentJobOther: teacherData.currentJobOther,
+          mainSubject: teacherData.mainSubject,
+          mainSubjectOther: teacherData.mainSubjectOther,
+          selectedAdditionalSubjects,
+          classTaughtOne: teacherData.classTaughtOne,
+          classTaughtTwo: teacherData.classTaughtTwo,
+          classTaughtOneOther: teacherData.classTaughtOneOther,
+          classTaughtTwoOther: teacherData.classTaughtTwoOther,
+          highestQualificationOne: teacherData.highestQualificationOne,
+          highestQualificationOneOther: teacherData.highestQualificationOneOther,
+          highestQualificationTwo: teacherData.highestQualificationTwo,
+          highestQualificationTwoOther: teacherData.highestQualificationTwoOther,
+          profileImage,
+        },
+      );
+
+      const payload = buildTeacherPayload();
+
+      // TEMPORARY DEBUG LOGGING — remove after root cause is confirmed.
+      console.log(
+        "TEACHER PAYLOAD BEFORE API:",
+        JSON.stringify(payload, null, 2),
+      );
+
+      await saveTeacher(payload);
+      alert("Profile saved successfully");
+    } catch (error) {
+      console.error("Error saving teacher profile:", error);
+      alert("Failed to save profile. Please try again.");
+    }
   };
 
   const completionItems = [

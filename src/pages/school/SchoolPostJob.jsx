@@ -12,6 +12,7 @@ import JobPreview from "../../components/postjob/JobPreview";
 import { Button } from "@cloudstrytech/ui-components";
 import { validateFields } from "../../lib/textValidation";
 import { generateJobBannerDataUrl } from "../../lib/generateJobImage";
+import { createJob } from "../../services/jobService";
 import styles from "./styles/SchoolPostJob.module.css";
 
 
@@ -102,6 +103,7 @@ const SchoolPostJob = () => {
   const [form, setForm] = useState(blankForm);
   const [generating, setGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
 
   const setField = (key, value) => setForm((p) => ({ ...p, [key]: value }));
 
@@ -187,7 +189,88 @@ const SchoolPostJob = () => {
     navigate("/school/manage-jobs");
   };
 
-  const handlePublish = () => {
+  // Existing per-employment-type salary fields (SalaryBenefits.jsx) flattened
+  // into the single free-text string the Job SDK's `compensation` field expects.
+  const buildCompensationString = () => {
+    switch (form.employmentType) {
+      case "Full Time":
+        return form.minAnnualCTC
+          ? `₹${form.minAnnualCTC} – ₹${form.maxAnnualCTC || form.minAnnualCTC} per annum`
+          : "";
+      case "Part Time":
+        return form.minHourlyRate
+          ? `₹${form.minHourlyRate} – ₹${form.maxHourlyRate || form.minHourlyRate} per hour`
+          : "";
+      case "Contract":
+        return form.contractPaymentType === "Monthly Payment (₹)"
+          ? form.contractMonthlyPayment
+            ? `₹${form.contractMonthlyPayment} per month (contract)`
+            : ""
+          : form.contractTotalValue
+            ? `₹${form.contractTotalValue} total contract value`
+            : "";
+      case "Hybrid":
+      case "Remote":
+        return form.minMonthlySalary
+          ? `₹${form.minMonthlySalary} – ₹${form.maxMonthlySalary || form.minMonthlySalary} per month`
+          : "";
+      case "Internship":
+        return form.minStipend
+          ? `₹${form.minStipend} – ₹${form.maxStipend || form.minStipend} per month (stipend)`
+          : "";
+      default:
+        return "";
+    }
+  };
+
+  const buildJobApiPayload = (schoolProfileId) => {
+    const languageRequirements = (form.languages || [])
+      .filter((lang) => lang?.name && lang?.proficiency)
+      .map((lang) => `${lang.name} - ${lang.proficiency}`);
+
+    const scheduled = form.publishOption === "Publish Later";
+    const publishAt =
+      scheduled && form.publishDate && form.publishTime
+        ? `${form.publishDate}T${form.publishTime}:00`
+        : undefined;
+
+    const compensation = buildCompensationString();
+
+    return {
+      schoolProfileId,
+      postedByUserId: String(storedUser.id),
+      title: form.jobTitle,
+      subject: form.subject || undefined,
+      roleCategory: form.roleCategory || undefined,
+      employmentType: form.employmentType || undefined,
+      joiningTimeline: form.joiningTimeline || undefined,
+      location: form.location || undefined,
+      description: form.description || form.shortDescription || undefined,
+      compensation: compensation || undefined,
+      vacancies: 1,
+      languageType: form.languageType || undefined,
+      languageRequirements: languageRequirements.length
+        ? languageRequirements
+        : undefined,
+      minQualification: form.minQualification || undefined,
+      additionalQualification: form.additionalQualification || undefined,
+      certifications: form.certifications?.length ? form.certifications : undefined,
+      experienceRequired: form.experience || undefined,
+      studentLevels: form.studentLevels?.length ? form.studentLevels : undefined,
+      preferredSchoolTypes: form.preferredSchoolTypes?.length
+        ? form.preferredSchoolTypes
+        : undefined,
+      requiredSkills: form.requiredSkills?.length ? form.requiredSkills : undefined,
+      technicalSkills: form.technicalSkills?.length ? form.technicalSkills : undefined,
+      genderPreference: form.genderPreference || undefined,
+      interviewMode: form.interviewMode || undefined,
+      publishOption: form.publishOption || undefined,
+      publishAt,
+    };
+  };
+
+  const handlePublish = async () => {
+    if (isPosting) return;
     if (!form.jobTitle || !form.location || !form.employmentType) {
       alert("Job Title, Location and Employment Type are required to publish.");
       return;
@@ -198,15 +281,36 @@ const SchoolPostJob = () => {
       return;
     }
     if (!checkContent()) return;
-    setJobs((p) => [
-      buildJob("Pending Approval", scheduled ? "Scheduled" : "Active"),
-      ...p,
-    ]);
-    setForm(blankForm);
-    alert(
-      "Job sent to SkoolJobs for approval. Once approved, you can publish it from Manage Jobs.",
-    );
-    navigate("/school/manage-jobs");
+
+    const schoolProfileId = localStorage.getItem("schoolProfileId");
+    console.log("schoolProfileId:", schoolProfileId);
+    if (!schoolProfileId) {
+      alert("Please save your School Profile before posting a job.");
+      return;
+    }
+
+    const payload = buildJobApiPayload(schoolProfileId);
+    console.log("Job API payload:", payload);
+
+    setIsPosting(true);
+    try {
+      const response = await createJob(payload);
+      console.log("Job API response:", response);
+      setJobs((p) => [
+        buildJob("Pending Approval", scheduled ? "Scheduled" : "Active"),
+        ...p,
+      ]);
+      setForm(blankForm);
+      alert(
+        "Job sent to SkoolJobs for approval. Once approved, you can publish it from Manage Jobs.",
+      );
+      navigate("/school/manage-jobs");
+    } catch (error) {
+      console.error("Job API error:", error);
+      alert("Failed to submit job to SkoolJobs. Please try again.");
+    } finally {
+      setIsPosting(false);
+    }
   };
 
   return (
@@ -263,11 +367,14 @@ const SchoolPostJob = () => {
           <Button
             type="button"
             onClick={handlePublish}
+            disabled={isPosting}
           >
             <Send size={15} />
-            {form.publishOption === "Publish Later"
-              ? "Schedule Job"
-              : "Send for Approval"}
+            {isPosting
+              ? "Submitting..."
+              : form.publishOption === "Publish Later"
+                ? "Schedule Job"
+                : "Send for Approval"}
           </Button>
         </div>
       </div>
