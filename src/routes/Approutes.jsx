@@ -9,6 +9,7 @@ import PublicJobView from "../pages/PublicJobView";
 const ApiSpecPage = lazy(() => import("../pages/ApiSpecPage"));
 const ApiSwaggerPage = lazy(() => import("../pages/ApiSwaggerPage"));
 import SchoolLayout from "../layouts/SchoolLayout";
+import SchoolNotificationLayout from "../layouts/SchoolNotificationLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
 import AdminLayout from "../layouts/AdminLayout";
 import AdminDashboard from "../pages/admin/AdminDashboard";
@@ -69,21 +70,23 @@ function AppRoutes() {
       />
 
       {/* School module — shared layout wraps all school sections */}
-      <Route path="/school" element={<SchoolLayout />}>
-        <Route index element={<Navigate to="/school/dashboard" replace />} />
-        <Route path="dashboard" element={<SchoolHome />} />
-        <Route path="view-profile" element={<SchoolViewProfile />} />
-        <Route path="post-job" element={<SchoolPostJob />} />
-        <Route path="manage-jobs" element={<SchoolManageJobs />} />
-        <Route path="manage-jobs/:jobId" element={<SchoolJobDetail />} />
-        <Route path="all-applicants" element={<SchoolAllApplicants />} />
-        <Route path="interviews" element={<SchoolInterviews />} />
-        <Route path="saved-candidates" element={<SchoolSavedCandidates />} />
-        <Route path="packages" element={<SchoolPackages />} />
-        <Route path="transactions" element={<SchoolTransactions />} />
-        <Route path="settings" element={<SchoolSettings />} />
+      <Route element={<SchoolNotificationLayout />}>
+        <Route path="/school" element={<SchoolLayout />}>
+          <Route index element={<Navigate to="/school/dashboard" replace />} />
+          <Route path="dashboard" element={<SchoolHome />} />
+          <Route path="view-profile" element={<SchoolViewProfile />} />
+          <Route path="post-job" element={<SchoolPostJob />} />
+          <Route path="manage-jobs" element={<SchoolManageJobs />} />
+          <Route path="manage-jobs/:jobId" element={<SchoolJobDetail />} />
+          <Route path="all-applicants" element={<SchoolAllApplicants />} />
+          <Route path="interviews" element={<SchoolInterviews />} />
+          <Route path="saved-candidates" element={<SchoolSavedCandidates />} />
+          <Route path="packages" element={<SchoolPackages />} />
+          <Route path="transactions" element={<SchoolTransactions />} />
+          <Route path="settings" element={<SchoolSettings />} />
+        </Route>
+        <Route path="/school/profile" element={<SchoolProfile />} />
       </Route>
-      <Route path="/school/profile" element={<SchoolProfile />} />
 
       {/* Teacher module — shared layout wraps all teacher sections */}
       <Route path="/teacher" element={<TeacherLayout />}>
