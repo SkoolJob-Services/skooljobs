@@ -1,12 +1,8 @@
 import { Configuration, JobApi } from "@skooljobs/job-api";
-
-const BASE_URL =
-    import.meta.env.MODE === "development"
-        ? "http://localhost:8085"
-        : "http://dev.app.skooljobs.com";
+import { API_BASE_PATHS } from "./apiConfig";
 
 const configuration = new Configuration({
-    basePath: BASE_URL,
+    basePath: API_BASE_PATHS.job,
 });
 
 const jobApi = new JobApi(configuration);

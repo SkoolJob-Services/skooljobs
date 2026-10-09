@@ -1,12 +1,8 @@
 import { Configuration, TeacherApi } from "@skooljobs/teacher-api";
-
-const BASE_URL =
-    import.meta.env.MODE === "development"
-        ? "http://localhost:8086"
-        : "http://dev.app.skooljobs.com";
+import { API_BASE_PATHS } from "./apiConfig";
 
 const configuration = new Configuration({
-    basePath: BASE_URL,
+    basePath: API_BASE_PATHS.teacherProfile,
 });
 
 const teacherApi = new TeacherApi(configuration);
