@@ -1,7 +1,4 @@
-const WS_BASE_URL =
-    import.meta.env.MODE === "development"
-        ? "ws://localhost:8080"
-        : "ws://dev.app.skooljobs.com";
+import { getWebSocketOrigin } from "./apiConfig";
 
 const NOTIFICATION_PATH = "/ws/notifications";
 
@@ -10,7 +7,7 @@ let activeUserId = null;
 let messageHandler = null;
 
 export const buildNotificationSocketUrl = (userId) =>
-    `${WS_BASE_URL}${NOTIFICATION_PATH}?userId=${encodeURIComponent(userId)}`;
+    `${getWebSocketOrigin()}${NOTIFICATION_PATH}?userId=${encodeURIComponent(userId)}`;
 
 const isLive = (ws) =>
     ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN;
