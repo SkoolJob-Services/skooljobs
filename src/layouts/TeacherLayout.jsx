@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { jobsData, resumesData } from "../lib/teacherdata";
 import { computeJobMatch, loadTeacherMatchProfile } from "../lib/jobMatch";
+import { applyToJob } from "../services/applicationService";
 import styles from "./TeacherLayout.module.css";
 
 const profileSections = [
@@ -212,6 +213,14 @@ const TeacherLayout = () => {
     if (!appliedJobs.some((item) => item.id === job.id)) {
       setAppliedJobs((prev) => [...prev, { ...job, appliedDate: new Date().toISOString() }]);
       addActivity(`Applied for ${job.role} at ${job.school}`, "apply");
+
+      // Submit to the Application API. The local list above stays the UI's
+      // source of truth until jobs/resumes carry backend IDs, so a failed
+      // call is logged rather than blocking the apply.
+      if (selectedResume?.id != null) {
+        applyToJob({ job_id: String(job.id), resume_id: String(selectedResume.id) })
+          .catch((err) => console.error("Application API apply failed:", err));
+      }
 
       // Sync application to recruiter applicants list in localStorage
       try {
