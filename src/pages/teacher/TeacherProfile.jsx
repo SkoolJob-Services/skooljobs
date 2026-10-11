@@ -235,6 +235,9 @@ const TeacherProfile = () => {
     }
   }
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Ref guard: blocks a second submit before the `saving` re-render lands.
+  const savingRef = useRef(false);
   const [profileImage, setProfileImage] = useState(
     storedUser.profilePhoto || "https://i.pravatar.cc/300?img=12",
   );
@@ -1457,6 +1460,8 @@ const TeacherProfile = () => {
       return;
     }
 
+    if (savingRef.current) return;
+
     try {
       const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
       const updatedUser = {
@@ -1475,6 +1480,8 @@ const TeacherProfile = () => {
       console.error("Error saving profile to localStorage:", err);
     }
 
+    savingRef.current = true;
+    setSaving(true);
     try {
       // TEMPORARY DEBUG LOGGING — remove after root cause is confirmed.
       console.log(
@@ -1508,11 +1515,22 @@ const TeacherProfile = () => {
         JSON.stringify(payload, null, 2),
       );
 
-      await saveTeacher(payload);
-      alert("Profile saved successfully");
+      // CREATE: POST /teachers → 202 CommandAcceptedResponse
+      // { commandId, status, message?, timestamp? } — no teacher id is returned.
+      const response = await saveTeacher(payload);
+      alert(response?.data?.message || "Profile saved successfully");
     } catch (error) {
       console.error("Error saving teacher profile:", error);
-      alert("Failed to save profile. Please try again.");
+      // ErrorResponse { code, message } from the API, when present.
+      const serverMessage = error?.response?.data?.message;
+      alert(
+        serverMessage
+          ? `Failed to save profile: ${serverMessage}`
+          : "Failed to save profile. Please try again.",
+      );
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -4376,8 +4394,9 @@ const TeacherProfile = () => {
                     type="submit"
                     variant="filled"
                     startIcon="saveIcon"
+                    disabled={saving}
                   >
-                    Save Changes
+                    {saving ? "Saving..." : "Save Changes"}
                   </Button>
                 </div>
               )}
