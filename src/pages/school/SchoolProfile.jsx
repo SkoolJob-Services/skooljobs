@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { profileSections } from "../../lib/schooldata";
 import profileOptions from "../../../dropdown/School_module/profile.json";
@@ -8,7 +8,6 @@ import styles from "./styles/SchoolProfile.module.css";
 import {
   getSchoolProfile,
   saveSchoolProfile,
-  updateSchoolProfile,
 } from "../../services/schoolProfileService";
 import { useImageUpload } from "../../lib/useImageUpload";
 import { validateFields } from "../../lib/textValidation";
@@ -59,6 +58,15 @@ const studentCountOptions = toOptions(studentCountOptionsRaw);
 const studentsPerClassOptions = toOptions(studentsPerClassOptionsRaw);
 const publicViewOptions = toOptions(publicViewOptionsRaw);
 const busServiceOptions = toOptions(busServiceOptionsRaw);
+
+// Dropdown labels that differ from the API's Board enum values.
+const BOARD_API_VALUES = {
+  "IB (International Baccalaureate)": "IB",
+  "IGCSE / Cambridge": "IGCSE-Cambridge",
+};
+const BOARD_FORM_VALUES = Object.fromEntries(
+  Object.entries(BOARD_API_VALUES).map(([form, api]) => [api, form]),
+);
 
 const sidebarItems = [
   {
@@ -219,16 +227,18 @@ const SchoolProfile = () => {
     addressLane2: "",
   });
 
-  // Edit mode when a profile id exists; the fetched profile is kept as the
-  // base for UPDATE so backend fields the form doesn't edit are preserved.
-  const [schoolProfileId, setSchoolProfileId] = useState(
+  // Profile id returned by CREATE; the fetched profile pre-fills the form.
+  // Save always calls CREATE — the Update API is not used on this page.
+  const [, setSchoolProfileId] = useState(
     () => localStorage.getItem("schoolProfileId") || null,
   );
   const [loadedProfile, setLoadedProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(
     () => !!localStorage.getItem("schoolProfileId"),
   );
-  const [profileLoadFailed, setProfileLoadFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Ref guard: blocks a second submit before the `saving` re-render lands.
+  const savingRef = useRef(false);
 
   useEffect(() => {
     const storedId = localStorage.getItem("schoolProfileId");
@@ -243,7 +253,7 @@ const SchoolProfile = () => {
         const mapped = {
           companyName: data.schoolName,
           sector: data.sector,
-          board: data.board,
+          board: BOARD_FORM_VALUES[data.board] || data.board,
           medium: data.medium,
           level: data.level,
           industry: data.industry,
@@ -279,7 +289,6 @@ const SchoolProfile = () => {
           setSchoolProfileId(null);
         } else {
           console.error("Failed to load school profile:", error);
-          setProfileLoadFailed(true);
           alert("Failed to load profile.");
         }
       })
@@ -336,6 +345,7 @@ const SchoolProfile = () => {
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (savingRef.current) return;
     if (activeSection === "address" && !formData.postalCode) {
       alert("Postal Code is required for job location matching.");
       return;
@@ -352,8 +362,10 @@ const SchoolProfile = () => {
       return;
     }
 
-    console.log(currentUser);
-
+    if (currentUser.id === undefined || currentUser.id === null || currentUser.id === "") {
+      alert("Your session is missing a user id. Please log in again before saving.");
+      return;
+    }
 
     const payload = {
       schoolAdminId: String(currentUser.id),
@@ -364,10 +376,13 @@ const SchoolProfile = () => {
       schoolType: loadedProfile?.schoolType ?? "Private",
       affiliationStatus: loadedProfile?.affiliationStatus ?? "Affiliated",
 
-      board: formData.board,
+      board: BOARD_API_VALUES[formData.board] || formData.board,
       medium: formData.medium,
       level: formData.level,
       industry: formData.industry,
+      establishedYear: formData.establishedYear
+        ? Number(formData.establishedYear)
+        : null,
       description: formData.aboutInstitute,
 
       contact: {
@@ -395,46 +410,32 @@ const SchoolProfile = () => {
     console.log("Level =", payload.level);
     console.log("Payload =", JSON.stringify(payload, null, 2));
     if (profileLoading) return;
-    if (schoolProfileId && profileLoadFailed) {
-      alert("Profile could not be loaded. Please refresh before saving.");
-      return;
-    }
+    savingRef.current = true;
+    setSaving(true);
     try {
-      if (schoolProfileId) {
-        // UPDATE: complete SchoolProfile, fetched profile as base so fields
-        // the form doesn't edit (logoUrl, fullAddress, ...) survive.
-        const updatePayload = {
-          ...loadedProfile,
-          ...payload,
-          contact: { ...loadedProfile?.contact, ...payload.contact },
-          address: { ...loadedProfile?.address, ...payload.address },
-          socialLinks: {
-            ...loadedProfile?.socialLinks,
-            ...payload.socialLinks,
-          },
-          schoolProfileId,
-        };
-        const response = await updateSchoolProfile(updatePayload);
-        console.log("API Response:", response);
-        // 202 CommandAccepted — processed asynchronously; keep what we sent
-        // as the base for any further saves on this page.
-        setLoadedProfile(updatePayload);
-        alert(response?.data?.message || "Profile update submitted successfully!");
-        return;
-      }
-
+      // CREATE only: POST /school-profiles → 202 CommandAcceptedResponse.
       const response = await saveSchoolProfile(payload);
       console.log("API Response:", response);
       const newSchoolProfileId = response?.data?.schoolProfileId;
-      if (newSchoolProfileId) {
-        localStorage.setItem("schoolProfileId", newSchoolProfileId);
-        setSchoolProfileId(newSchoolProfileId);
-        setLoadedProfile({ ...payload, schoolProfileId: newSchoolProfileId });
+      if (!newSchoolProfileId) {
+        console.error("Create response has no schoolProfileId:", response?.data);
+        alert(
+          "Profile was submitted, but the server did not return a profile id. Please contact support before saving again.",
+        );
+        return;
       }
-      alert("Profile saved successfully!");
+      localStorage.setItem("schoolProfileId", newSchoolProfileId);
+      setSchoolProfileId(newSchoolProfileId);
+      setLoadedProfile({ ...payload, schoolProfileId: newSchoolProfileId });
+      alert(response?.data?.message || "Profile saved successfully!");
     } catch (error) {
       console.error("API Error:", error);
-      alert("Failed to save profile.");
+      // ErrorResponse { code, message } from the API, when present.
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage ? `Failed to save profile: ${serverMessage}` : "Failed to save profile.");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -1348,9 +1349,9 @@ const SchoolProfile = () => {
                 type="submit"
                 variant="filled"
                 startIcon="saveIcon"
-                disabled={profileLoading}
+                disabled={profileLoading || saving}
               >
-                {profileLoading ? "Loading..." : "Save Changes"}
+                {profileLoading ? "Loading..." : saving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </div>
