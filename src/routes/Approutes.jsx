@@ -1,8 +1,15 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import styles from "./Approutes.module.css";
-import Login from "../auth/login";
-import Signup from "../auth/signup";
+import { GuestRoute, HomeRedirect, RoleRoute } from "../features/auth/routeGuards";
+import { TenantGate } from "../features/tenant/TenantGate";
+import { LoginPage } from "../features/login/LoginPage";
+import { LoginVerifyPage } from "../features/login/LoginVerifyPage";
+import { SignupPage } from "../features/signup/SignupPage";
+import { SignupVerifyPage } from "../features/signup/SignupVerifyPage";
+import { SignupDonePage } from "../features/signup/SignupDonePage";
+import { InvitePage } from "../features/invite/InvitePage";
+import { InviteVerifyPage } from "../features/invite/InviteVerifyPage";
 import PublicJobView from "../pages/PublicJobView";
 
 // Heavy, rarely-used docs pages — keep them out of the main bundle.
@@ -44,11 +51,34 @@ import TeacherSettings from "../pages/teacher/TeacherSettings";
 import TeacherSavedJobs from "../pages/teacher/TeacherSavedJobs";
 
 
+/** Login, signup and invite need the tenant (GET /tenants/current) before they render. */
+function TenantPages() {
+  return (
+    <TenantGate>
+      <Outlet />
+    </TenantGate>
+  );
+}
+
+const SCHOOL_ROLES = ["SCHOOL_ADMIN", "SCHOOL_MEMBER"];
+
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+      {/* "/" sends logged-in users to their area (by role from the token), others to /login */}
+      <Route path="/" element={<HomeRedirect />} />
+
+      {/* Signup service OTP flows — same pages as cattlemgmtapp */}
+      <Route element={<TenantPages />}>
+        <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+        <Route path="/login/verify" element={<GuestRoute><LoginVerifyPage /></GuestRoute>} />
+        <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
+        <Route path="/signup/verify" element={<GuestRoute><SignupVerifyPage /></GuestRoute>} />
+        <Route path="/signup/done" element={<GuestRoute><SignupDonePage /></GuestRoute>} />
+        <Route path="/invite" element={<GuestRoute><InvitePage /></GuestRoute>} />
+        <Route path="/invite/verify" element={<GuestRoute><InviteVerifyPage /></GuestRoute>} />
+      </Route>
+
       <Route path="/public-job/:jobId" element={<PublicJobView />} />
 
       {/* Living API spec & data model docs (public) */}
@@ -69,56 +99,64 @@ function AppRoutes() {
         }
       />
 
-      {/* School module — shared layout wraps all school sections */}
-      <Route element={<SchoolNotificationLayout />}>
-        <Route path="/school" element={<SchoolLayout />}>
-          <Route index element={<Navigate to="/school/dashboard" replace />} />
-          <Route path="dashboard" element={<SchoolHome />} />
-          <Route path="view-profile" element={<SchoolViewProfile />} />
-          <Route path="post-job" element={<SchoolPostJob />} />
-          <Route path="manage-jobs" element={<SchoolManageJobs />} />
-          <Route path="manage-jobs/:jobId" element={<SchoolJobDetail />} />
-          <Route path="all-applicants" element={<SchoolAllApplicants />} />
-          <Route path="interviews" element={<SchoolInterviews />} />
-          <Route path="saved-candidates" element={<SchoolSavedCandidates />} />
-          <Route path="packages" element={<SchoolPackages />} />
-          <Route path="transactions" element={<SchoolTransactions />} />
-          <Route path="settings" element={<SchoolSettings />} />
+      {/* School module — school admins and members */}
+      <Route element={<RoleRoute roles={SCHOOL_ROLES} />}>
+        <Route element={<SchoolNotificationLayout />}>
+          <Route path="/school" element={<SchoolLayout />}>
+            <Route index element={<Navigate to="/school/dashboard" replace />} />
+            <Route path="dashboard" element={<SchoolHome />} />
+            <Route path="view-profile" element={<SchoolViewProfile />} />
+            <Route path="post-job" element={<SchoolPostJob />} />
+            <Route path="manage-jobs" element={<SchoolManageJobs />} />
+            <Route path="manage-jobs/:jobId" element={<SchoolJobDetail />} />
+            <Route path="all-applicants" element={<SchoolAllApplicants />} />
+            <Route path="interviews" element={<SchoolInterviews />} />
+            <Route path="saved-candidates" element={<SchoolSavedCandidates />} />
+            <Route path="packages" element={<SchoolPackages />} />
+            <Route path="transactions" element={<SchoolTransactions />} />
+            <Route path="settings" element={<SchoolSettings />} />
+          </Route>
+          <Route path="/school/profile" element={<SchoolProfile />} />
         </Route>
-        <Route path="/school/profile" element={<SchoolProfile />} />
       </Route>
 
       {/* Teacher module — shared layout wraps all teacher sections */}
-      <Route path="/teacher" element={<TeacherLayout />}>
-        <Route index element={<Navigate to="/teacher/dashboard" replace />} />
-        <Route path="dashboard" element={<TeacherHome />} />
-        <Route path="all-jobs" element={<TeacherAllJobs />} />
-        <Route path="recommendation" element={<TeacherRecommendation />} />
-        <Route path="resume" element={<TeacherResume />} />
-        <Route path="activity" element={<TeacherActivity />} />
-        <Route path="applications" element={<TeacherApplications />} />
-        <Route path="interviews" element={<TeacherInterviews />} />
-        <Route path="saved-jobs" element={<TeacherSavedJobs />} />
-        <Route path="jobs/:jobId" element={<TeacherJobDetail />} />
-        <Route path="settings" element={<TeacherSettings />} />
+      <Route element={<RoleRoute roles={["TEACHER"]} />}>
+        <Route path="/teacher" element={<TeacherLayout />}>
+          <Route index element={<Navigate to="/teacher/dashboard" replace />} />
+          <Route path="dashboard" element={<TeacherHome />} />
+          <Route path="all-jobs" element={<TeacherAllJobs />} />
+          <Route path="recommendation" element={<TeacherRecommendation />} />
+          <Route path="resume" element={<TeacherResume />} />
+          <Route path="activity" element={<TeacherActivity />} />
+          <Route path="applications" element={<TeacherApplications />} />
+          <Route path="interviews" element={<TeacherInterviews />} />
+          <Route path="saved-jobs" element={<TeacherSavedJobs />} />
+          <Route path="jobs/:jobId" element={<TeacherJobDetail />} />
+          <Route path="settings" element={<TeacherSettings />} />
+        </Route>
+        <Route path="/teacher/profile" element={<TeacherProfile />} />
       </Route>
-      <Route path="/teacher/profile" element={<TeacherProfile />} />
 
       {/* SkoolJobs platform admin module — reviews jobs submitted by schools */}
-      <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={<Navigate to="/admin/dashboard" replace />} />
-        <Route path="dashboard" element={<AdminDashboard />} />
-        <Route path="job-approvals" element={<AdminDashboard />} />
-        <Route path="jobs" element={<AdminJobs />} />
-        <Route path="schools" element={<AdminSchools />} />
+      <Route element={<RoleRoute roles={["ADMIN"]} />}>
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="job-approvals" element={<AdminDashboard />} />
+          <Route path="jobs" element={<AdminJobs />} />
+          <Route path="schools" element={<AdminSchools />} />
+        </Route>
       </Route>
 
       {/* Head Admin module — one login manages jobs across multiple schools */}
-      <Route path="/head-admin" element={<HeadAdminLayout />}>
-        <Route index element={<Navigate to="/head-admin/dashboard" replace />} />
-        <Route path="dashboard" element={<HeadAdminDashboard />} />
-        <Route path="post-job" element={<HeadAdminPostJob />} />
-        <Route path="manage-jobs" element={<HeadAdminJobs />} />
+      <Route element={<RoleRoute roles={["HEAD_ADMIN"]} />}>
+        <Route path="/head-admin" element={<HeadAdminLayout />}>
+          <Route index element={<Navigate to="/head-admin/dashboard" replace />} />
+          <Route path="dashboard" element={<HeadAdminDashboard />} />
+          <Route path="post-job" element={<HeadAdminPostJob />} />
+          <Route path="manage-jobs" element={<HeadAdminJobs />} />
+        </Route>
       </Route>
 
       {/* Legacy redirects so old bookmarks / links still work */}
@@ -126,6 +164,7 @@ function AppRoutes() {
       <Route path="/dashboard" element={<Navigate to="/teacher/dashboard" replace />} />
       <Route path="/school-profile" element={<Navigate to="/school/profile" replace />} />
       <Route path="/teacher-profile" element={<Navigate to="/teacher/profile" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

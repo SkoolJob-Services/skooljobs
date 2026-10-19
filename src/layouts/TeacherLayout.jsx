@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../features/auth/AuthContext";
 import {
   BriefcaseBusiness,
   ChevronDown,
@@ -50,6 +51,7 @@ const navItems = [
 
 const TeacherLayout = () => {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const location = useLocation();
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -261,10 +263,11 @@ const TeacherLayout = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser");
+  // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
+  const handleLogout = async () => {
     localStorage.removeItem("userName");
-    navigate("/");
+    await signOut();
+    navigate("/login", { replace: true });
   };
 
   const outletCtx = {

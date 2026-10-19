@@ -1,11 +1,12 @@
 import { Configuration, SchoolProfileApi } from "@skooljobs/school-api";
+import { serviceHttp } from "../api/httpClient";
 import { API_BASE_PATHS } from "./apiConfig";
 
 const configuration = new Configuration({
     basePath: API_BASE_PATHS.schoolProfile,
 });
 
-const schoolProfileApi = new SchoolProfileApi(configuration);
+const schoolProfileApi = new SchoolProfileApi(configuration, undefined, serviceHttp);
 
 export const saveSchoolProfile = async (payload) => {
     return schoolProfileApi.createSchoolProfile(payload);

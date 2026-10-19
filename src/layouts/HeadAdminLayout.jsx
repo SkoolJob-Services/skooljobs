@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../features/auth/AuthContext";
 import {
   BriefcaseBusiness,
   Building2,
@@ -20,6 +21,7 @@ const sidebarItems = [
 
 const HeadAdminLayout = () => {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const location = useLocation();
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -60,9 +62,10 @@ const HeadAdminLayout = () => {
   const managedSchools = currentUser.managedSchools || [];
   const myJobs = jobs.filter((j) => j.schoolEmail === currentUser.email);
 
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser");
-    navigate("/");
+  // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
   };
 
   const outletCtx = { jobs, setJobs, myJobs, currentUser, managedSchools };

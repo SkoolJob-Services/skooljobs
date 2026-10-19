@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../features/auth/AuthContext";
 import {
   BriefcaseBusiness,
   Building2,
@@ -49,6 +50,7 @@ const sidebarItems = [
 
 const SchoolLayout = () => {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const location = useLocation();
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -205,9 +207,10 @@ const SchoolLayout = () => {
   const schoolName = currentUser.companyName || currentUser.schoolName || currentUser.firstName || "Som Lalit School";
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser");
-    navigate("/");
+  // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
   };
 
   const handleLogoUpload = async (e) => {

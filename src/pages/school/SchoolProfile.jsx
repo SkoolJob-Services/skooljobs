@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../../features/auth/AuthContext";
 import { profileSections } from "../../lib/schooldata";
 import profileOptions from "../../../dropdown/School_module/profile.json";
 import { Button, Input, Select } from "@cloudstrytech/ui-components";
@@ -138,6 +139,7 @@ const Field = ({ label, required, children }) => (
 
 const SchoolProfile = () => {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeSection = searchParams.get("section") || "basic";
   const setActiveSection = (id) =>
@@ -339,9 +341,10 @@ const SchoolProfile = () => {
     if (item.route) navigate(item.route);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser");
-    navigate("/");
+  // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
   };
   const handleSubmit = async (e) => {
     e.preventDefault();

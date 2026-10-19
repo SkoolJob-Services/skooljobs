@@ -3,14 +3,15 @@ import {
     Configuration,
     QueriesApi,
 } from "@skooljobs/application-api";
+import { serviceHttp } from "../api/httpClient";
 import { API_BASE_PATHS } from "./apiConfig";
 
 const configuration = new Configuration({
     basePath: API_BASE_PATHS.application,
 });
 
-const commandsApi = new CommandsApi(configuration);
-const queriesApi = new QueriesApi(configuration);
+const commandsApi = new CommandsApi(configuration, undefined, serviceHttp);
+const queriesApi = new QueriesApi(configuration, undefined, serviceHttp);
 
 // --- Commands (all return CommandAcceptedResponse: { commandId, status, message }) ---
 
