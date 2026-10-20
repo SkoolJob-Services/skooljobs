@@ -1,23 +1,27 @@
 {
   "name": "skooljobs",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "SkoolJobs web app (React + Vite): OTP login, signup and invites via the signup service, teacher/school/admin areas",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "VITE_USE_MOCK_API=true VITE_CLIENT_ID=local-dev vite",
     "build": "vite build",
-    "lint": "eslint .",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "swagger": "node scripts/swagger-server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml"
   },
   "dependencies": {
+    "@app/signup-api": "^0.0.1-dev.1",
     "@capacitor/android": "^8.4.0",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
-    "@cloudstrytech/ui-components": "^1.0.25",
+    "@cloudstrytech/ui-components": "^1.0.28",
     "@material/web": "^2.4.1",
     "@skooljobs/application-api": "0.0.1-SNAPSHOT",
     "@skooljobs/job-api": "0.0.1-SNAPSHOT",
@@ -52,8 +56,12 @@
     "globals": "^17.6.0",
     "js-yaml": "^4.2.0",
     "swagger-ui-express": "^5.0.1",
+    "typescript": "~5.8.3",
     "vite": "^8.0.12",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "axios": "$axios"
   }
 }
