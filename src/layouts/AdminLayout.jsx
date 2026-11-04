@@ -2,27 +2,44 @@ import { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 import {
-  Briefcase,
-  Building2,
   ClipboardCheck,
   LayoutDashboard,
   LogOut,
   Menu,
+  UserPlus,
   X,
 } from "lucide-react";
-import Topbar from "../components/topbar";
 import styles from "./AdminLayout.module.css";
 
 const sidebarItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/admin/dashboard" },
+  { label: "Invite Schools", icon: UserPlus, path: "/admin/invite-schools" },
   { label: "Job Approvals", icon: ClipboardCheck, path: "/admin/job-approvals" },
-  { label: "All Jobs", icon: Briefcase, path: "/admin/jobs" },
-  { label: "Schools", icon: Building2, path: "/admin/schools" },
 ];
+
+// Header titles for every admin route, including the ones not in the sidebar.
+const pageTitles = {
+  "/admin/dashboard": "Dashboard",
+  "/admin/invite-schools": "Invite Schools",
+  "/admin/job-approvals": "Job Approvals",
+  "/admin/jobs": "All Jobs",
+  "/admin/schools": "Schools",
+};
+
+const isActivePath = (pathname, path) =>
+  pathname === path || pathname.startsWith(path + "/");
+
+const initialsOf = (text) =>
+  text
+    .split(/[\s@._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join("");
 
 const AdminLayout = () => {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, session } = useAuth();
   const location = useLocation();
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -31,6 +48,13 @@ const AdminLayout = () => {
     setPrevPathname(location.pathname);
     setMobileNavOpen(false);
   }
+
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+    const onKey = (e) => e.key === "Escape" && setMobileNavOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileNavOpen]);
 
   const [jobs, setJobs] = useState(() => {
     const saved = localStorage.getItem("skooljobs_jobs");
@@ -66,104 +90,120 @@ const AdminLayout = () => {
     navigate("/login", { replace: true });
   };
 
+  // Signed-in admin from the session — nothing is shown if the session has no name/email.
+  const adminName =
+    currentUser.name ||
+    [currentUser.firstName, currentUser.lastName].filter(Boolean).join(" ");
+  const adminContact = currentUser.email || session?.identifier || "";
+  const adminLabel = adminName || adminContact;
+
+  const pageTitle =
+    Object.entries(pageTitles).find(([path]) =>
+      isActivePath(location.pathname, path),
+    )?.[1] || "Platform Admin";
+
   const outletCtx = { jobs, setJobs, currentUser };
+
+  const navList = (
+    <nav className={styles.nav} aria-label="Platform admin">
+      {sidebarItems.map((item) => {
+        const Icon = item.icon;
+        const isActive = isActivePath(location.pathname, item.path);
+        return (
+          <button
+            key={item.path}
+            type="button"
+            onClick={() => navigate(item.path)}
+            aria-current={isActive ? "page" : undefined}
+            className={`${styles.navButton} ${isActive ? styles.navButtonActive : ""}`}
+          >
+            <Icon size={18} aria-hidden="true" />
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
 
   return (
     <div className={styles.page}>
-      <div className={styles.shell}>
-        <aside className={styles.sidebar}>
-          <div className={styles.sidebarInner}>
-            <div className={styles.brandRow}>
-              <div className={styles.brandMark}>SJ</div>
-              <div className={styles.brandText}>
-                <p className={styles.brandName}>SkoolJobs</p>
-                <p className={styles.brandSub}>Platform Admin</p>
+      {mobileNavOpen && (
+        <div
+          className={styles.backdrop}
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`${styles.sidebar} ${mobileNavOpen ? styles.sidebarOpen : ""}`}
+        id="admin-sidebar"
+      >
+        <div className={styles.brandRow}>
+          <div className={styles.brandMark} aria-hidden="true">SJ</div>
+          <div className={styles.brandText}>
+            <p className={styles.brandName}>SkoolJobs</p>
+            <p className={styles.brandSub}>Platform Admin</p>
+          </div>
+          <button
+            type="button"
+            className={styles.sidebarClose}
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close navigation menu"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {navList}
+
+        <div className={styles.sidebarFooter}>
+          <button type="button" onClick={handleLogout} className={styles.logoutButton}>
+            <LogOut size={18} aria-hidden="true" /> Logout
+          </button>
+        </div>
+      </aside>
+
+      <div className={styles.main}>
+        <header className={styles.header}>
+          <div className={styles.headerLeft}>
+            <button
+              type="button"
+              className={styles.menuToggle}
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation menu"
+              aria-expanded={mobileNavOpen}
+              aria-controls="admin-sidebar"
+            >
+              <Menu size={20} />
+            </button>
+            <div className={styles.headerTitles}>
+              <p className={styles.headerContext}>Platform Admin</p>
+              <h1 className={styles.headerTitle}>{pageTitle}</h1>
+            </div>
+          </div>
+
+          {adminLabel && (
+            <div className={styles.profile}>
+              <div className={styles.profileText}>
+                <p className={styles.profileName}>{adminLabel}</p>
+                {adminName && adminContact && (
+                  <p className={styles.profileSub}>{adminContact}</p>
+                )}
               </div>
+              {currentUser.profilePhoto ? (
+                <img src={currentUser.profilePhoto} alt="" className={styles.avatar} />
+              ) : (
+                <span className={styles.avatar} aria-hidden="true">
+                  {initialsOf(adminLabel)}
+                </span>
+              )}
             </div>
+          )}
+        </header>
 
-            <nav className={styles.nav}>
-              {sidebarItems.map((item) => {
-                const Icon = item.icon;
-                const isActive =
-                  location.pathname === item.path ||
-                  location.pathname.startsWith(item.path + "/");
-                return (
-                  <button
-                    key={item.path}
-                    type="button"
-                    onClick={() => navigate(item.path)}
-                    className={`${styles.navButton} ${isActive ? styles.navButtonActive : ""
-                      }`}
-                  >
-                    <Icon size={17} />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className={styles.sidebarFooter}>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className={styles.logoutButton}
-              >
-                <LogOut size={17} /> Logout
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        <main className={styles.main}>
-          <Topbar
-            title="SkoolJobs Admin"
-            subtitle="Review job submissions from every school on the platform."
-          />
-
-          <div className={styles.mobileNavWrap}>
-            <div className={styles.mobileNavBar}>
-              <span className={styles.mobileNavTitle}>
-                {sidebarItems.find((item) => item.path === location.pathname)
-                  ?.label || "Menu"}
-              </span>
-              <button
-                type="button"
-                onClick={() => setMobileNavOpen((o) => !o)}
-                aria-label="Toggle navigation menu"
-                aria-expanded={mobileNavOpen}
-                className={styles.mobileNavToggle}
-              >
-                {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
-            </div>
-
-            {mobileNavOpen && (
-              <div className={styles.mobileNavMenu}>
-                {sidebarItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive =
-                    location.pathname === item.path ||
-                    location.pathname.startsWith(item.path + "/");
-                  return (
-                    <button
-                      key={item.path}
-                      type="button"
-                      onClick={() => navigate(item.path)}
-                      className={`${styles.mobileNavButton} ${isActive ? styles.mobileNavButtonActive : ""
-                        }`}
-                    >
-                      <Icon size={17} />
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className={styles.outletWrap}>
-            <Outlet context={outletCtx} />
-          </div>
+        <main className={styles.content}>
+          <Outlet context={outletCtx} />
         </main>
       </div>
     </div>

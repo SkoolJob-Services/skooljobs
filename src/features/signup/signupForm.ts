@@ -41,10 +41,14 @@ export function contactFromForm(v: SignupFormValues): SignupContact {
 /** Channels the user asked to verify, limited to those with a value. */
 export function requestedChannels(v: SignupFormValues): OtpChannel[] {
   const contact = contactFromForm(v);
+  // Same rule as the server (Signup B2): every identifier supplied is verified;
+  // a WhatsApp OTP on the same number also proves the phone.
+  const whatsapp = !!contact.whatUpNo && (v.verifyWhatsapp || contact.whatUpNo !== contact.phone);
+  const phone = !!contact.phone && (v.verifyPhone || !(whatsapp && contact.whatUpNo === contact.phone));
   const channels: OtpChannel[] = [];
-  if (v.verifyEmail && contact.email) channels.push("email");
-  if (v.verifyPhone && contact.phone) channels.push("phone");
-  if (v.verifyWhatsapp && contact.whatUpNo) channels.push("whatsapp");
+  if (contact.email) channels.push("email");
+  if (phone) channels.push("phone");
+  if (whatsapp) channels.push("whatsapp");
   return channels;
 }
 

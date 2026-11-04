@@ -28,6 +28,8 @@ export interface LegacyUser {
   phone?: string;
   role: string;
   isMember?: boolean;
+  /** School the account belongs to, when the token says (the school pages show it in the header). */
+  schoolName?: string;
   roleCodes: string[];
   tenantId?: string;
 }
@@ -46,6 +48,7 @@ export function toLegacyUser(session: AuthSession, role: AppRole, roleCodes: str
     phone: text("phone") ?? text("phone_number") ?? (isEmail ? undefined : session.identifier),
     role: LEGACY_ROLE[role],
     isMember: role === "SCHOOL_MEMBER" || undefined,
+    schoolName: text("schoolName"),
     roleCodes,
     tenantId: session.tenantId,
   };

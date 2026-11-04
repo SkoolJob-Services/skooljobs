@@ -9,6 +9,9 @@ import { errorMessage } from "../../lib/errorMessages";
 import { statusOf } from "../../api/errors";
 import { useFlow } from "../FlowContext";
 import { useTenant } from "../tenant/TenantContext";
+import { useAuth } from "../auth/AuthContext";
+import { findLocalAccount, localLogin, writeLocalProfile } from "../auth/localAccounts";
+import { ROLE_HOME } from "../auth/roles";
 
 interface LocationState {
   from?: string;
@@ -22,6 +25,7 @@ export function LoginPage() {
   const state = (location.state ?? {}) as LocationState;
   const { pendingLogin, setPendingLogin } = useFlow();
   const { signupAllowed } = useTenant();
+  const { signIn } = useAuth();
 
   const [identifier, setIdentifier] = useState(state.identifier ?? pendingLogin?.identifier ?? "");
   const [fieldError, setFieldError] = useState<string | undefined>(undefined);
@@ -40,6 +44,15 @@ export function LoginPage() {
       return;
     }
     setFieldError(undefined);
+
+    // Head Admin / school HR / platform admin can't log in via the backend yet — log in locally without OTP.
+    const localAccount = findLocalAccount(normalized.value);
+    if (localAccount) {
+      signIn(localLogin(localAccount), normalized.value);
+      writeLocalProfile(localAccount);
+      navigate(ROLE_HOME[localAccount.role], { replace: true });
+      return;
+    }
 
     setSubmitting(true);
     try {

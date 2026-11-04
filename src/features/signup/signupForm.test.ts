@@ -42,9 +42,10 @@ describe("validateSignup", () => {
     expect(errors.form).toMatch(/at least/i);
   });
 
-  it("needs at least one verification channel", () => {
+  it("verifies an entered email even when its box is not ticked", () => {
     const errors = validateSignup({ ...base, verifyEmail: false }, { requireSignupType: false });
-    expect(errors.form).toMatch(/verification code/i);
+    expect(errors.form).toBeUndefined();
+    expect(requestedChannels({ ...base, verifyEmail: false })).toEqual(["email"]);
   });
 
   it("flags an invalid email and phone", () => {
@@ -66,6 +67,16 @@ describe("requestedChannels", () => {
 
   it("uses the phone number for WhatsApp when 'same as phone' is ticked", () => {
     const values = { ...base, phoneNumber: "9876543210", verifyPhone: true, verifyWhatsapp: true };
+    expect(requestedChannels(values)).toEqual(["email", "phone", "whatsapp"]);
+  });
+
+  it("requires every identifier entered, even if only email was ticked", () => {
+    const values = { ...base, phoneNumber: "9876543210", whatsappSameAsPhone: false };
+    expect(requestedChannels(values)).toEqual(["email", "phone"]);
+  });
+
+  it("requires phone and WhatsApp when the WhatsApp number differs", () => {
+    const values = { ...base, phoneNumber: "9876543210", whatsappSameAsPhone: false, whatsappNumber: "9999999999" };
     expect(requestedChannels(values)).toEqual(["email", "phone", "whatsapp"]);
   });
 });

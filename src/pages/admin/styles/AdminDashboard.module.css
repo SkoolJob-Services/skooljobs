@@ -1,33 +1,3 @@
-.container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.pageHeader {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.pageTitle {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-primary-text);
-}
-
-.pageSubtitle {
-  font-size: 0.875rem;
-  color: #6b6b5f;
-  max-width: 62ch;
-}
-
-@media (min-width: 640px) {
-  .pageTitle {
-    font-size: 1.875rem;
-  }
-}
-
 .statsGrid {
   display: grid;
   gap: 1rem;
@@ -47,211 +17,163 @@
 }
 
 .statCard {
-  padding: 1.1rem;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 1rem;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  padding: 1.125rem;
 }
 
 .statTop {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
-.statIconWrap {
+.statLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--admin-muted-soft);
+}
+
+.statIcon {
   display: flex;
   height: 2.25rem;
   width: 2.25rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 0.65rem;
+  border-radius: 0.625rem;
 }
 
-.statLabel {
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #8a8a78;
-}
+.toneNavy { background-color: var(--admin-primary); color: var(--color-bg); }
+.toneBlue { background-color: var(--admin-primary-soft); color: var(--admin-primary); }
+.toneAmber { background-color: #fef3c7; color: #b45309; }
+.toneGreen { background-color: #dcfce7; color: #15803d; }
+.toneRed { background-color: #fee2e2; color: #b91c1c; }
 
 .statValue {
-  margin-top: 0.6rem;
-  font-size: 1.6rem;
+  margin-top: 0.75rem;
+  font-size: 2rem;
   font-weight: 700;
-  color: #26261f;
-  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--admin-text);
 }
 
 .statSub {
-  margin-top: 0.35rem;
-  font-size: 0.7rem;
-  color: #9a9a89;
-}
-
-.colorPrimary { color: var(--color-primary); }
-.colorBlue { color: #0284c7; }
-.colorGold { color: #b45309; }
-.colorTeal { color: #0f766e; }
-.colorGreen { color: #16a34a; }
-.colorRust { color: #b0271c; }
-
-.iconBgPrimary { background: rgba(21, 41, 63, 0.12); }
-.iconBgBlue { background: rgba(2, 132, 199, 0.12); }
-.iconBgGold { background: rgba(180, 83, 9, 0.12); }
-.iconBgTeal { background: rgba(15, 118, 110, 0.12); }
-.iconBgGreen { background: rgba(22, 163, 74, 0.12); }
-.iconBgRust { background: rgba(176, 39, 28, 0.12); }
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.sectionHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.sectionTitle {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #26261f;
-}
-
-.hint {
+  margin-top: 0.25rem;
   font-size: 0.75rem;
-  color: #9a9a89;
+  color: var(--admin-muted);
 }
 
-.emptyText {
-  font-size: 0.875rem;
-  color: #9a9a89;
-  padding: 1rem;
-  background: var(--color-bg);
-  border: 1px dashed var(--color-border);
-  border-radius: 0.75rem;
-}
-
-.queue {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.jobCard {
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 0.9rem;
-  padding: 1rem 1.15rem;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+.columns {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 1rem;
+  gap: 1.5rem;
   align-items: start;
 }
 
-@media (max-width: 640px) {
-  .jobCard {
-    grid-template-columns: 1fr;
+@media (min-width: 1024px) {
+  .columns {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   }
 }
 
-.jobMain { min-width: 0; }
+.pendingList {
+  display: flex;
+  flex-direction: column;
+}
 
-.jobTitleRow {
+.pendingItem {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.3rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--admin-border);
 }
 
-.jobTitle {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #26261f;
-  margin: 0;
+.pendingItem:last-child {
+  border-bottom: 0;
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
+@media (min-width: 768px) {
+  .pendingItem {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
 }
 
-.chipPending {
-  background: #f5f3ff;
-  color: #7c3aed;
+.pendingMain {
+  min-width: 0;
 }
 
-.jobMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
+.pendingTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+
+.pendingMeta {
+  margin-top: 0.125rem;
   font-size: 0.75rem;
-  color: #6b6b5f;
+  color: var(--admin-muted);
 }
 
-.schoolTag {
-  font-weight: 700;
-  color: #26261f;
-}
-
-.dot {
-  color: var(--color-border);
-}
-
-.jobActions {
+.actionList {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  min-width: 9rem;
+  gap: 0.25rem;
+  padding: 0.5rem;
 }
 
-.rejectComposer {
-  grid-column: 1 / -1;
+.actionItem {
   display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.9rem 1rem;
-  background: #fef2f2;
-  border: 1px solid rgba(176, 39, 28, 0.25);
-  border-radius: 0.75rem;
-}
-
-.rejectComposerLabel {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #b0271c;
-}
-
-.rejectComposerInput {
   width: 100%;
-  padding: 0.55rem 0.75rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg);
-  font-family: inherit;
-  font-size: 0.85rem;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 1rem;
+  padding: 0.75rem;
+  text-align: left;
+  transition: background-color 150ms;
 }
 
-.rejectComposerActions {
+.actionItem:hover {
+  background-color: var(--admin-hover);
+}
+
+.actionIcon {
   display: flex;
-  gap: 0.5rem;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  background-color: var(--admin-primary-soft);
+  color: var(--admin-primary);
+}
+
+.actionText {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
+}
+
+.actionLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+
+.actionSub {
+  font-size: 0.75rem;
+  color: var(--admin-muted);
+}
+
+.actionArrow {
+  flex-shrink: 0;
+  color: var(--admin-muted);
 }

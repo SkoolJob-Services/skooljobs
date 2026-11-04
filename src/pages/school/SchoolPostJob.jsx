@@ -13,6 +13,7 @@ import { Button } from "@cloudstrytech/ui-components";
 import { validateFields } from "../../lib/textValidation";
 import { generateJobBannerDataUrl } from "../../lib/generateJobImage";
 import { createJob } from "../../services/jobService";
+import { getMySchoolProfile } from "../../services/schoolProfileService";
 import styles from "./styles/SchoolPostJob.module.css";
 
 
@@ -282,20 +283,23 @@ const SchoolPostJob = () => {
     }
     if (!checkContent()) return;
 
-    const schoolProfileId = localStorage.getItem("schoolProfileId");
-    console.log("schoolProfileId:", schoolProfileId);
+    // The caller's own school, from the server (never localStorage).
+    let schoolProfileId;
+    try {
+      ({ data: { schoolProfileId } } = await getMySchoolProfile());
+    } catch (error) {
+      if (error?.response?.status !== 404) console.error("Failed to load school profile:", error);
+    }
     if (!schoolProfileId) {
       alert("Please save your School Profile before posting a job.");
       return;
     }
 
     const payload = buildJobApiPayload(schoolProfileId);
-    console.log("Job API payload:", payload);
 
     setIsPosting(true);
     try {
-      const response = await createJob(payload);
-      console.log("Job API response:", response);
+      await createJob(payload);
       setJobs((p) => [
         buildJob("Pending Approval", scheduled ? "Scheduled" : "Active"),
         ...p,

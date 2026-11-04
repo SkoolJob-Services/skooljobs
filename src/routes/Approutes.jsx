@@ -22,6 +22,8 @@ import AdminLayout from "../layouts/AdminLayout";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminJobs from "../pages/admin/AdminJobs";
 import AdminSchools from "../pages/admin/AdminSchools";
+import AdminInviteSchools from "../pages/admin/AdminInviteSchools";
+import AdminJobApprovals from "../pages/admin/AdminJobApprovals";
 import HeadAdminLayout from "../layouts/HeadAdminLayout";
 import HeadAdminDashboard from "../pages/headadmin/HeadAdminDashboard";
 import HeadAdminPostJob from "../pages/headadmin/HeadAdminPostJob";
@@ -143,7 +145,8 @@ function AppRoutes() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="job-approvals" element={<AdminDashboard />} />
+          <Route path="invite-schools" element={<AdminInviteSchools />} />
+          <Route path="job-approvals" element={<AdminJobApprovals />} />
           <Route path="jobs" element={<AdminJobs />} />
           <Route path="schools" element={<AdminSchools />} />
         </Route>

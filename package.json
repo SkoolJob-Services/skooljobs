@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:mock": "VITE_USE_MOCK_API=true VITE_CLIENT_ID=local-dev vite",
+    "dev:mock": "node scripts/dev-mock.js",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
