@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "useDefineForClassFields": true,
+    "paths": {
+      "@cloudstrytech/ui-components": ["./node_modules/@cloudstrytech/ui-components/dist/types/index.d.ts"]
+    }
+  },
+  // Type-checks the TypeScript parts (auth, api, config, shared lib). The JavaScript pages are not checked.
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["src/generated"]
+}

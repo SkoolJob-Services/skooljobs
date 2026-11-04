@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../../features/auth/AuthContext";
 import { profileSections } from "../../lib/schooldata";
 import profileOptions from "../../../dropdown/School_module/profile.json";
 import { Button, Input, Select } from "@cloudstrytech/ui-components";
 import { toOptions } from "../../lib/selectOptions";
 import styles from "./styles/SchoolProfile.module.css";
 import {
-  getSchoolProfile,
-  saveSchoolProfile,
+  getMySchoolProfile,
+  updateSchoolProfile,
 } from "../../services/schoolProfileService";
 import { useImageUpload } from "../../lib/useImageUpload";
 import { validateFields } from "../../lib/textValidation";
@@ -138,6 +139,7 @@ const Field = ({ label, required, children }) => (
 
 const SchoolProfile = () => {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeSection = searchParams.get("section") || "basic";
   const setActiveSection = (id) =>
@@ -227,25 +229,21 @@ const SchoolProfile = () => {
     addressLane2: "",
   });
 
-  // Profile id returned by CREATE; the fetched profile pre-fills the form.
-  // Save always calls CREATE — the Update API is not used on this page.
-  const [, setSchoolProfileId] = useState(
-    () => localStorage.getItem("schoolProfileId") || null,
-  );
+  // The caller's own school comes from the server (GET /school-profiles/me),
+  // never from localStorage. Save updates that school; schools are only created
+  // by a platform-admin invitation, so there is no create from this page.
+  const [, setSchoolProfileId] = useState(null);
   const [loadedProfile, setLoadedProfile] = useState(null);
-  const [profileLoading, setProfileLoading] = useState(
-    () => !!localStorage.getItem("schoolProfileId"),
-  );
+  const [profileLoading, setProfileLoading] = useState(true);
+  // Schools come only from invitations: no own school yet means "being set up".
+  const [schoolPending, setSchoolPending] = useState(false);
   const [saving, setSaving] = useState(false);
   // Ref guard: blocks a second submit before the `saving` re-render lands.
   const savingRef = useRef(false);
 
   useEffect(() => {
-    const storedId = localStorage.getItem("schoolProfileId");
-    if (!storedId) return;
-
     let cancelled = false;
-    getSchoolProfile(storedId)
+    getMySchoolProfile()
       .then(({ data }) => {
         if (cancelled || !data) return;
         setLoadedProfile(data);
@@ -283,10 +281,9 @@ const SchoolProfile = () => {
       .catch((error) => {
         if (cancelled) return;
         if (error?.response?.status === 404) {
-          // Unknown id → stay in create mode. The stored id is left alone so a
-          // refresh can retry (the async projection may not have caught up yet);
-          // a successful CREATE overwrites it.
+          // No school yet: it is claimed from the invitation shortly after signup.
           setSchoolProfileId(null);
+          setSchoolPending(true);
         } else {
           console.error("Failed to load school profile:", error);
           alert("Failed to load profile.");
@@ -339,9 +336,10 @@ const SchoolProfile = () => {
     if (item.route) navigate(item.route);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser");
-    navigate("/");
+  // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -405,26 +403,25 @@ const SchoolProfile = () => {
         instagram: "",
       },
     };
-    console.log("Form Data:", formData);
-    console.log("Board =", payload.board);
-    console.log("Level =", payload.level);
-    console.log("Payload =", JSON.stringify(payload, null, 2));
     if (profileLoading) return;
     savingRef.current = true;
     setSaving(true);
     try {
-      // CREATE only: POST /school-profiles → 202 CommandAcceptedResponse.
-      const response = await saveSchoolProfile(payload);
-      console.log("API Response:", response);
+      // UPDATE the caller's own school: POST /school-profiles/update → CommandAcceptedResponse.
+      const existingId = loadedProfile?.schoolProfileId;
+      if (!existingId) {
+        alert("Your school is still being set up from your invitation. Please refresh in a moment.");
+        return;
+      }
+      const response = await updateSchoolProfile({ ...payload, schoolProfileId: existingId });
       const newSchoolProfileId = response?.data?.schoolProfileId;
       if (!newSchoolProfileId) {
-        console.error("Create response has no schoolProfileId:", response?.data);
+        console.error("Update response has no schoolProfileId:", response?.data);
         alert(
           "Profile was submitted, but the server did not return a profile id. Please contact support before saving again.",
         );
         return;
       }
-      localStorage.setItem("schoolProfileId", newSchoolProfileId);
       setSchoolProfileId(newSchoolProfileId);
       setLoadedProfile({ ...payload, schoolProfileId: newSchoolProfileId });
       alert(response?.data?.message || "Profile saved successfully!");
@@ -831,10 +828,7 @@ const SchoolProfile = () => {
           <Field label="Board">
             <Select
               value={formData.board}
-              onChange={(v) => {
-                console.log("Board Changed =", v);
-                setField("board", v);
-              }}
+              onChange={(v) => setField("board", v)}
               options={boards}
             />
             <p className={styles.fieldHelpText}>
@@ -1262,6 +1256,17 @@ const SchoolProfile = () => {
       </div>
     </div>
   );
+
+  if (schoolPending) {
+    return (
+      <div className={styles.pageWrap} role="status">
+        <p>Your school is being set up from your invitation. This can take a moment.</p>
+        <Button type="button" onClick={() => window.location.reload()}>
+          Refresh
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.pageWrap}>

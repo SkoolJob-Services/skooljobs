@@ -31,6 +31,10 @@ export default defineConfig(({ mode }) => {
   if (env.DEV_APPLICATION_API_TARGET) {
     proxy["/api/application"] = apiProxy(env.DEV_APPLICATION_API_TARGET, /^\/api\/application/);
   }
+  // Signup service (login, signup, invites). Without it, use `npm run dev:mock`.
+  if (env.DEV_SIGNUP_API_TARGET) {
+    proxy["/api/signup"] = apiProxy(env.DEV_SIGNUP_API_TARGET, /^\/api\/signup/);
+  }
 
   return {
     server: { proxy },
@@ -46,7 +50,8 @@ export default defineConfig(({ mode }) => {
           // from service-worker precaching so every visitor doesn't pay that
           // download upfront. The browser's HTTP cache still serves repeat
           // requests since the chunk filename is content-hashed.
-          globIgnores: ["**/group1-shard*.js"],
+          // env.js holds the runtime settings written at container start: never precache it.
+          globIgnores: ["**/group1-shard*.js", "env.js"],
         },
         manifest: {
           name: "Skool Jobs",
