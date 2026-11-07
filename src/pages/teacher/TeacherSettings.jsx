@@ -1,10 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { HelpCircle, KeyRound, Save, Trash2, Bell, Eye } from "lucide-react";
 import FormField from "../../components/FormField";
 import styles from "./styles/TeacherSettings.module.css";
 import { Button, Input } from "@cloudstrytech/ui-components";
+import {
+  updateTeacherProfile,
+  getOwnTeacherProfile,
+} from "../../services/teacherprofileService";
 
+const storedUser = (() => {
+  try {
+    return JSON.parse(localStorage.getItem("currentUser") || "{}");
+  } catch {
+    return {};
+  }
+})();
 
 const TeacherSettings = () => {
   const { handleLogout } = useOutletContext();
@@ -16,6 +27,58 @@ const TeacherSettings = () => {
     sms: false,
     push: true,
   });
+  const [savingNotifPrefs, setSavingNotifPrefs] = useState(false);
+
+  // Loads the real saved preferences from the backend - this screen must
+  // not show defaults as if they were the teacher's actual saved choice.
+  useEffect(() => {
+    if (!storedUser.id) return;
+    let cancelled = false;
+    getOwnTeacherProfile()
+      .then(({ data }) => {
+        if (cancelled || !data?.notificationPreferences) return;
+        const prefs = data.notificationPreferences;
+        setNotifPrefs((prev) => ({
+          email: prefs.email ?? prev.email,
+          sms: prefs.sms ?? prev.sms,
+          push: prefs.push ?? prev.push,
+        }));
+      })
+      .catch((error) => {
+        if (!cancelled && error?.response?.status !== 404) {
+          console.error("Failed to load notification preferences:", error);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const saveNotificationPreferences = async () => {
+    if (!storedUser.id) {
+      alert("Your session is missing a user id. Please log in again before saving.");
+      return;
+    }
+    setSavingNotifPrefs(true);
+    try {
+      await updateTeacherProfile({
+        teacherId: String(storedUser.id),
+        teacher_user_id: String(storedUser.id),
+        updated_sections: ["notificationPreferences"],
+        notificationPreferences: {
+          email: notifPrefs.email,
+          sms: notifPrefs.sms,
+          push: notifPrefs.push,
+        },
+      });
+      alert("Notification preferences saved successfully");
+    } catch (error) {
+      console.error("Failed to save notification preferences:", error);
+      alert("Failed to save notification preferences. Please try again.");
+    } finally {
+      setSavingNotifPrefs(false);
+    }
+  };
 
   // Delete account states
   const [deleteStep, setDeleteStep] = useState(0);
@@ -109,6 +172,16 @@ const TeacherSettings = () => {
               <div className={styles.switchTrack}></div>
             </label>
           </div>
+        </div>
+        <div className={styles.passwordActions}>
+          <Button
+            variant="filled"
+            disabled={savingNotifPrefs}
+            onClick={saveNotificationPreferences}
+          >
+            <Save size={16} />{" "}
+            {savingNotifPrefs ? "Saving..." : "Save Preferences"}
+          </Button>
         </div>
       </div>
 

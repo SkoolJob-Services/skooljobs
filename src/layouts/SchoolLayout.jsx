@@ -21,11 +21,50 @@ import {
 import Topbar from "../components/topbar";
 import { initialJobs, initialApplicants } from "../lib/schooldata";
 import { useImageUpload } from "../lib/useImageUpload";
+import { listJobs } from "../services/jobService";
 import styles from "./SchoolLayout.module.css";
 
 const augmentedJobs = [...initialJobs]
   .sort((a, b) => new Date(b.date) - new Date(a.date))
   .map((j) => ({ ...j, roleType: "Teaching", vacancies: 2, expiryDate: "30 Jun 2025" }));
+
+// Real JobResponse (job service) -> the shape SchoolManageJobs/SchoolJobDetail
+// already render. Status-transition fields (Active/Paused/Closed/Draft as a
+// user action) have no backend equivalent today - UpdateJobRequest carries no
+// status field - so `status` below is read-only display derived from the
+// backend's own status/adminReviewStatus strings, not round-tripped on save.
+const JOB_STATUS_DISPLAY = {
+  OPEN: "Active",
+  DRAFT: "Draft",
+  CLOSED: "Closed",
+  PAUSED: "Paused",
+};
+
+const mapJobResponse = (job) => ({
+  id: job.jobId,
+  schoolProfileId: job.schoolProfileId,
+  title: job.title,
+  subject: job.subject,
+  roleType: job.roleCategory,
+  employmentType: job.employmentType,
+  location: job.location,
+  experience: job.experienceRequired,
+  vacancies: job.vacancies,
+  salaryRange: job.compensation,
+  description: job.description,
+  requirements: job.requirements,
+  qualifications: Array.isArray(job.qualificationsRequired)
+    ? job.qualificationsRequired.join(", ")
+    : job.qualificationsRequired,
+  status:
+    job.adminReviewStatus === "PENDING"
+      ? "Pending Approval"
+      : JOB_STATUS_DISPLAY[job.status] || job.status,
+  rejectionReason: job.adminRejectionReason,
+  applicants: job.applicantsCount || 0,
+  date: job.postedDate,
+  expiryDate: job.expiryDate,
+});
 
 const augmentedApplicants = initialApplicants.map((a, i) => ({
   ...a,
@@ -67,6 +106,39 @@ const SchoolLayout = () => {
     }
     return augmentedJobs;
   });
+  const [jobsLoading, setJobsLoading] = useState(
+    () => !!localStorage.getItem("schoolProfileId"),
+  );
+  const [jobsError, setJobsError] = useState(null);
+
+  // Real jobs owned by this school, from the Job Posting service (GET
+  // /jobs, filtered client-side by schoolProfileId - the backend has no
+  // school-scoped list query). Falls back to the existing mock/localStorage
+  // jobs on fetch failure so the page still renders something.
+  useEffect(() => {
+    const schoolProfileId = localStorage.getItem("schoolProfileId");
+    if (!schoolProfileId) return;
+    let cancelled = false;
+    listJobs()
+      .then(({ data }) => {
+        if (cancelled || !Array.isArray(data)) return;
+        const own = data
+          .filter((j) => j.schoolProfileId === schoolProfileId)
+          .map(mapJobResponse);
+        setJobs(own);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to load jobs:", error);
+        setJobsError(error);
+      })
+      .finally(() => {
+        if (!cancelled) setJobsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [applicants, setApplicants] = useState(() => {
     const saved = localStorage.getItem("skooljobs_applicants");
     if (saved) {
@@ -288,6 +360,8 @@ const SchoolLayout = () => {
   const outletCtx = {
     jobs,
     setJobs,
+    jobsLoading,
+    jobsError,
     applicants,
     setApplicants,
     logoImage,

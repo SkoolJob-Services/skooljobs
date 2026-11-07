@@ -20,7 +20,13 @@ import {
 import { jobsData, resumesData } from "../lib/teacherdata";
 import { computeJobMatch, loadTeacherMatchProfile } from "../lib/jobMatch";
 import { applyToJob } from "../services/applicationService";
+import {
+  updateTeacherProfile,
+} from "../services/teacherprofileService";
 import styles from "./TeacherLayout.module.css";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const profileSections = [
   { id: "basic", label: "My Profile" },
@@ -253,14 +259,50 @@ const TeacherLayout = () => {
     }
   };
 
+  // Backend-sync for the savedJobs section. The TeacherEntity.savedJobs
+  // contract field is UUID-typed (job_id), but the current All Jobs list
+  // is still 100% mock/local data (jobsData + recruiter-posted jobs from
+  // localStorage, neither using real UUIDs) - that's a separate, larger
+  // wiring task (connecting this Teacher UI to the real Job Service),
+  // not done here. Non-UUID ids are skipped rather than sent and rejected,
+  // so this is correctly wired for when real job ids start flowing
+  // through, but will persist nothing server-side today for mock jobs.
+  const submitSavedJobs = async (jobs) => {
+    if (!currentUser.id) return;
+    const validJobs = jobs.filter((j) => UUID_PATTERN.test(String(j.id)));
+    if (validJobs.length !== jobs.length) {
+      console.warn(
+        "Skipping backend sync for saved jobs with non-UUID ids (mock job data):",
+        jobs.filter((j) => !UUID_PATTERN.test(String(j.id))).map((j) => j.id),
+      );
+    }
+    try {
+      await updateTeacherProfile({
+        teacherId: String(currentUser.id),
+        teacher_user_id: String(currentUser.id),
+        updated_sections: ["savedJobs"],
+        savedJobs: validJobs.map((j) => ({
+          job_id: j.id,
+          saved_at: j.savedAt || new Date().toISOString(),
+        })),
+      });
+    } catch (error) {
+      console.error("Failed to save bookmarked jobs to the server:", error);
+    }
+  };
+
   const handleSave = (job) => {
+    let updated;
     if (savedJobs.some((item) => item.id === job.id)) {
-      setSavedJobs((prev) => prev.filter((item) => item.id !== job.id));
+      updated = savedJobs.filter((item) => item.id !== job.id);
+      setSavedJobs(updated);
       addActivity(`Removed bookmark for ${job.role} at ${job.school}`, "unsave");
     } else {
-      setSavedJobs((prev) => [...prev, job]);
+      updated = [...savedJobs, job];
+      setSavedJobs(updated);
       addActivity(`Saved ${job.role} at ${job.school}`, "save");
     }
+    submitSavedJobs(updated);
   };
 
   // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
