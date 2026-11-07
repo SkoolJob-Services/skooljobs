@@ -9,6 +9,7 @@ import { inputClass, labelClass } from "../../lib/formStyles";
 import { toOptions } from "../../lib/selectOptions";
 import { Input, Select } from "@cloudstrytech/ui-components";
 import { validateFields } from "../../lib/textValidation";
+import { updateJob, deleteJob } from "../../services/jobService";
 import styles from "./styles/SchoolJobDetail.module.css";
 
 const {
@@ -48,6 +49,7 @@ const SchoolJobDetail = () => {
 
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const job = jobs.find((j) => String(j.id) === String(jobId.jobId));
 
@@ -68,13 +70,22 @@ const SchoolJobDetail = () => {
   const rejected = candidates.filter((a) => a.status === "Rejected").length;
   const ivCount = interviews.filter((iv) => iv.jobTitle === job.title).length;
 
+  // No backend field exists for job status (UpdateJobRequest has no
+  // `status` property) - Activate/Pause/Close/Publish stay local-only
+  // until the Job service exposes a status-transition capability.
   const setJobStatus = (status) =>
     setJobs((p) => p.map((j) => (j.id === job.id ? { ...j, status } : j)));
 
-  const handleDelete = () => {
-    if (window.confirm("Permanently delete this job? This cannot be undone.")) {
+  const handleDelete = async () => {
+    if (!window.confirm("Permanently delete this job? This cannot be undone.")) return;
+    try {
+      await deleteJob(job.id);
       setJobs((p) => p.filter((j) => j.id !== job.id));
       navigate("/school/manage-jobs");
+    } catch (error) {
+      console.error("Failed to delete job:", error);
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage ? `Failed to delete job: ${serverMessage}` : "Failed to delete job.");
     }
   };
 
@@ -96,7 +107,7 @@ const SchoolJobDetail = () => {
     setEditOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editForm.title || !editForm.location || !editForm.employmentType) {
       alert("Job Title, Location and Employment Type are required.");
       return;
@@ -112,8 +123,34 @@ const SchoolJobDetail = () => {
       alert(Object.values(errors)[0]);
       return;
     }
-    setJobs((p) => p.map((j) => (j.id === job.id ? { ...j, ...editForm } : j)));
-    setEditOpen(false);
+    setSavingEdit(true);
+    try {
+      // UpdateJobRequest has no expiryDate/salaryRange/roleType fields -
+      // those stay local-only (see mapJobResponse/SchoolLayout notes).
+      await updateJob(job.id, {
+        title: editForm.title,
+        subject: editForm.subject,
+        roleCategory: editForm.roleType,
+        employmentType: editForm.employmentType,
+        location: editForm.location,
+        experienceRequired: editForm.experience,
+        vacancies: editForm.vacancies ? Number(editForm.vacancies) : undefined,
+        compensation: editForm.salaryRange,
+        description: editForm.description,
+        requirements: editForm.requirements,
+        qualificationsRequired: editForm.qualifications
+          ? editForm.qualifications.split(",").map((q) => q.trim()).filter(Boolean)
+          : [],
+      });
+      setJobs((p) => p.map((j) => (j.id === job.id ? { ...j, ...editForm } : j)));
+      setEditOpen(false);
+    } catch (error) {
+      console.error("Failed to update job:", error);
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage ? `Failed to save job: ${serverMessage}` : "Failed to save job.");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const setField = (k, v) => setEditForm((p) => ({ ...p, [k]: v }));
@@ -374,8 +411,8 @@ const SchoolJobDetail = () => {
               <button type="button" onClick={() => setEditOpen(false)} className={styles.cancelBtn}>
                 Cancel
               </button>
-              <button type="button" onClick={handleSaveEdit} className={styles.saveBtn}>
-                Save Changes
+              <button type="button" onClick={handleSaveEdit} disabled={savingEdit} className={styles.saveBtn}>
+                {savingEdit ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>

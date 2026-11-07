@@ -31,7 +31,10 @@ import styles from "./styles/TeacherProfile.module.css";
 import { toOptions, toOptionsMap } from "../../lib/selectOptions";
 import { useImageUpload } from "../../lib/useImageUpload";
 import { validateText, validateFields } from "../../lib/textValidation";
-import { saveTeacher } from "../../services/teacherprofileService";
+import {
+  updateTeacherProfile,
+  getOwnTeacherProfile,
+} from "../../services/teacherprofileService";
 
 const { coursesByDegree: coursesByDegreeRaw, ...qualificationOptionsFlatRaw } =
   qualificationOptionsRaw;
@@ -95,6 +98,16 @@ const QUALIFICATION_MODE_MAP = {
   "Part Time": "Part-time",
   "Distance Learning": "Distance",
 };
+
+// Reverse of the maps above - needed to show backend enum values back in
+// the same UI dropdowns they were translated from on save.
+const reverseMap = (map) =>
+  Object.fromEntries(Object.entries(map).map(([key, value]) => [value, key]));
+const LANGUAGE_PROFICIENCY_REVERSE_MAP = reverseMap(LANGUAGE_PROFICIENCY_MAP);
+const QUALIFICATION_CLASS_LEVEL_REVERSE_MAP = reverseMap(
+  QUALIFICATION_CLASS_LEVEL_MAP,
+);
+const QUALIFICATION_MODE_REVERSE_MAP = reverseMap(QUALIFICATION_MODE_MAP);
 
 const navItems = [
   { id: "basic", label: "My Profile", icon: User },
@@ -297,6 +310,11 @@ const TeacherProfile = () => {
     };
   });
 
+  // applyBackendProfile (maps GET /teachers/me onto local state) and the
+  // fetch-on-mount effect that calls it are defined further below, after
+  // the qualifications/experiences/achievements/resumes/coverLetters
+  // state they populate, since they reference those setters.
+
   const [qualificationDraft, setQualificationDraft] =
     useState(blankQualification);
   const [savedQualifications, setSavedQualifications] = useState(() => {
@@ -391,6 +409,12 @@ const TeacherProfile = () => {
       return [];
     }
   });
+
+  // applyBackendProfile (maps GET /teachers/me onto local state) and
+  // the fetch-on-mount effect that calls it are defined further below,
+  // after dynamicLanguages state (which they also populate), since they
+  // reference that setter too.
+
   const [resumeMode, setResumeMode] = useState("upload");
 
   const [dynamicLanguages, setDynamicLanguages] = useState(() => {
@@ -406,6 +430,195 @@ const TeacherProfile = () => {
       { language: "English", status: "Fluency enough to teach", languageOther: "" },
     ];
   });
+
+
+  // Maps the GET /teachers/me response onto every piece of local state the
+  // UI shows, replacing whatever localStorage/default values were there -
+  // the backend is the source of truth once this has run. Reused by the
+  // mount effect right below and by submitSections' read-after-write
+  // refresh (defined further below buildTeacherPayload).
+  const applyBackendProfile = (data) => {
+    const has = (v) => v !== undefined && v !== null && v !== "";
+    const mapped = {
+      title: data.title,
+      firstName: data.first_name,
+      middleName: data.middle_name,
+      lastName: data.last_name,
+      nationality: data.nationality,
+      mainSubject: data.main_subject,
+      mobile: data.contact?.mobile,
+      whatsapp: data.contact?.whatsapp,
+      sameAsMobile: data.contact?.same_as_mobile,
+      primaryEmail: data.contact?.primary_email,
+      secondaryEmail: data.contact?.secondary_email,
+      pinCode: data.address?.pin_code,
+      city: data.address?.city,
+      state: data.address?.state,
+      address: data.address?.full_address,
+      briefWriteUp: data.summary,
+    };
+    setTeacherData((prev) => {
+      const next = { ...prev };
+      Object.entries(mapped).forEach(([key, value]) => {
+        if (has(value)) next[key] = value;
+      });
+      return next;
+    });
+    if (has(data.profile_photo_url)) setProfileImage(data.profile_photo_url);
+
+    if (Array.isArray(data.languages) && data.languages.length > 0) {
+      setDynamicLanguages(
+        data.languages.map((l) => ({
+          language: l.language || "",
+          status:
+            LANGUAGE_PROFICIENCY_REVERSE_MAP[l.proficiency] ||
+            l.proficiency ||
+            "",
+          languageOther: "",
+        })),
+      );
+    }
+
+    if (Array.isArray(data.qualifications)) {
+      setSavedQualifications(
+        data.qualifications.map((q) => ({
+          classLevel:
+            QUALIFICATION_CLASS_LEVEL_REVERSE_MAP[q.class_level] ||
+            q.class_level ||
+            "",
+          degree: q.degree || "",
+          degreeOther: "",
+          course: q.course || "",
+          courseOther: "",
+          year: q.year_passed || "",
+          medium: q.medium || "",
+          mediumOther: "",
+          mode: QUALIFICATION_MODE_REVERSE_MAP[q.mode] || q.mode || "",
+          percentage: q.percentage || "",
+          school: q.school_name || "",
+          university: q.university || "",
+          universityOther: "",
+          college: q.college || "",
+          collegeOther: "",
+        })),
+      );
+    }
+
+    if (Array.isArray(data.experiences)) {
+      setSavedExperiences(
+        data.experiences.map((e) => ({
+          school: e.school_name || "",
+          monthlyTakeHome: has(e.monthly_take_home) ? String(e.monthly_take_home) : "",
+          currentEmployer: Boolean(e.is_current_employer),
+          board: e.board || "",
+          boardOther: "",
+          startDate: e.start_date || "",
+          endDate: e.end_date || "",
+          mainSubject: e.main_subject || "",
+          mainSubjectOther: "",
+          otherSubjects: e.other_subjects || "",
+          otherSubjectsOther: "",
+          post: e.post_held || "",
+          postOther: "",
+          salary: has(e.salary_ctc_annual) ? String(e.salary_ctc_annual) : "",
+          reason: e.reason_for_leaving || "",
+          reasonOther: "",
+          details: e.details || "",
+        })),
+      );
+    }
+
+    if (Array.isArray(data.achievements)) {
+      const toLocalAchievement = (a) => ({
+        type: a.type || "",
+        name: a.name || "",
+        by: a.issued_by || "",
+        year: a.year || "",
+      });
+      setSavedAwards(
+        data.achievements
+          .filter((a) => a.category === "award")
+          .map(toLocalAchievement),
+      );
+      setSavedCourses(
+        data.achievements
+          .filter((a) => a.category === "course")
+          .map(toLocalAchievement),
+      );
+    }
+
+    if (Array.isArray(data.resumes)) {
+      setSavedResumes(
+        data.resumes.map((r) => ({
+          id: r.resume_id,
+          name: r.file_name || r.title,
+          title: r.title || "",
+          fullName: r.full_name || "",
+          email: r.email || "",
+          mobile: r.mobile || "",
+          address: r.address || "",
+          currentJobTitle: r.current_job_title || "",
+          summary: r.summary || "",
+          skills: r.skills || "",
+          education: r.education || "",
+          experience: r.experience || "",
+          certifications: r.certifications || "",
+          languages: r.languages || "",
+          achievements: r.resume_achievements || "",
+          format: r.format || "PDF",
+          fileName: r.file_name || "",
+          notes: r.notes || "",
+          source: r.source === "uploaded" ? "Uploaded" : "Created",
+          skill: r.skill || "",
+          score: has(r.score) ? r.score : 0,
+        })),
+      );
+    }
+
+    // Top-level list field name is plain camelCase on the Teacher contract
+    // (no snake_case @JsonProperty exists for it, unlike most other
+    // fields) - confirmed against the actual contract jar.
+    if (Array.isArray(data.coverLetters)) {
+      setSavedCoverLetters(
+        data.coverLetters.map((cl) => ({
+          id: cl.cover_letter_id,
+          title: cl.title || "",
+          source: cl.source || "manual",
+          content: cl.content || "",
+          resume_id: cl.resume_id || null,
+          resumeTitle: "",
+          jobTitle: "",
+          createdAt: cl.created_at || "",
+        })),
+      );
+    }
+  };
+
+  // Fetch-on-mount: the Signup -> TeacherProfile Kafka consumer auto-creates
+  // a Teacher record for every TEACHER signup, so one already exists by the
+  // time this page is reachable.
+  useEffect(() => {
+    if (!storedUser.id) return;
+    let cancelled = false;
+    getOwnTeacherProfile()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        applyBackendProfile(data);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if (error?.response?.status === 404) {
+          // Not yet projected (async signup consumer may still be catching
+          // up) or genuinely absent — stay on the localStorage/default form.
+          return;
+        }
+        console.error("Failed to load teacher profile:", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [selectedAdditionalSubjects, setSelectedAdditionalSubjects] = useState(
     () => {
@@ -736,24 +949,35 @@ const TeacherProfile = () => {
     setExperienceDraft((prev) => ({ ...prev, [field]: value }));
   };
 
-  const saveQualificationDraft = () => {
+  const saveQualificationDraft = async () => {
     if (!hasValue(qualificationDraft)) {
       alert("Please enter qualification details before saving.");
       return false;
     }
 
-    setSavedQualifications((prev) => {
-      if (editingQualificationIndex !== null) {
-        return prev.map((item, index) =>
-          index === editingQualificationIndex ? qualificationDraft : item,
-        );
-      }
+    const updated =
+      editingQualificationIndex !== null
+        ? savedQualifications.map((item, index) =>
+            index === editingQualificationIndex ? qualificationDraft : item,
+          )
+        : [...savedQualifications, qualificationDraft];
 
-      return [...prev, qualificationDraft];
-    });
+    setSavedQualifications(updated);
     setQualificationDraft(blankQualification);
     setEditingQualificationIndex(null);
     setShowQualificationForm(false);
+
+    try {
+      await submitSections(["qualifications"], {
+        qualifications: updated.map(toBackendQualification),
+      });
+    } catch (error) {
+      console.error("Failed to save qualifications:", error);
+      alert(
+        "Qualification was added, but saving it to the server failed. Please try again.",
+      );
+      return false;
+    }
     return true;
   };
 
@@ -771,24 +995,34 @@ const TeacherProfile = () => {
     );
   };
 
-  const saveAndAddQualification = () => {
+  const saveAndAddQualification = async () => {
     if (!hasValue(qualificationDraft)) {
       alert("Please enter qualification details before saving.");
       return;
     }
 
-    setSavedQualifications((prev) => {
-      if (editingQualificationIndex !== null) {
-        return prev.map((item, index) =>
-          index === editingQualificationIndex ? qualificationDraft : item,
-        );
-      }
+    const updated =
+      editingQualificationIndex !== null
+        ? savedQualifications.map((item, index) =>
+            index === editingQualificationIndex ? qualificationDraft : item,
+          )
+        : [...savedQualifications, qualificationDraft];
 
-      return [...prev, qualificationDraft];
-    });
+    setSavedQualifications(updated);
     setQualificationDraft(blankQualification);
     setEditingQualificationIndex(null);
     setShowQualificationForm(true);
+
+    try {
+      await submitSections(["qualifications"], {
+        qualifications: updated.map(toBackendQualification),
+      });
+    } catch (error) {
+      console.error("Failed to save qualifications:", error);
+      alert(
+        "Qualification was added, but saving it to the server failed. Please try again.",
+      );
+    }
     setTimeout(
       () =>
         qualificationFormRef.current?.scrollIntoView({
@@ -799,14 +1033,24 @@ const TeacherProfile = () => {
     );
   };
 
-  const removeQualification = (index) => {
-    setSavedQualifications((prev) =>
-      prev.filter((_, itemIndex) => itemIndex !== index),
+  const removeQualification = async (index) => {
+    const updated = savedQualifications.filter(
+      (_, itemIndex) => itemIndex !== index,
     );
+    setSavedQualifications(updated);
     if (editingQualificationIndex === index) {
       setQualificationDraft(blankQualification);
       setEditingQualificationIndex(null);
       setShowQualificationForm(false);
+    }
+
+    try {
+      await submitSections(["qualifications"], {
+        qualifications: updated.map(toBackendQualification),
+      });
+    } catch (error) {
+      console.error("Failed to remove qualification on the server:", error);
+      alert("Removed locally, but the server update failed. Please try again.");
     }
   };
 
@@ -820,7 +1064,7 @@ const TeacherProfile = () => {
     });
   };
 
-  const saveExperienceDraft = () => {
+  const saveExperienceDraft = async () => {
     if (!hasValue(experienceDraft)) {
       alert("Please enter experience details before saving.");
       return false;
@@ -857,18 +1101,29 @@ const TeacherProfile = () => {
       return false;
     }
 
-    setSavedExperiences((prev) => {
-      if (editingExperienceIndex !== null) {
-        return prev.map((item, index) =>
-          index === editingExperienceIndex ? experienceDraft : item,
-        );
-      }
+    const updated =
+      editingExperienceIndex !== null
+        ? savedExperiences.map((item, index) =>
+            index === editingExperienceIndex ? experienceDraft : item,
+          )
+        : [...savedExperiences, experienceDraft];
 
-      return [...prev, experienceDraft];
-    });
+    setSavedExperiences(updated);
     setExperienceDraft(blankExperience);
     setEditingExperienceIndex(null);
     setShowExperienceForm(false);
+
+    try {
+      await submitSections(["experiences"], {
+        experiences: updated.map(toBackendExperience),
+      });
+    } catch (error) {
+      console.error("Failed to save experiences:", error);
+      alert(
+        "Experience was added, but saving it to the server failed. Please try again.",
+      );
+      return false;
+    }
     return true;
   };
 
@@ -886,8 +1141,8 @@ const TeacherProfile = () => {
     );
   };
 
-  const saveAndAddExperience = () => {
-    if (!saveExperienceDraft()) return;
+  const saveAndAddExperience = async () => {
+    if (!(await saveExperienceDraft())) return;
     setExperienceDraft(blankExperience);
     setEditingExperienceIndex(null);
     setShowExperienceForm(true);
@@ -901,14 +1156,24 @@ const TeacherProfile = () => {
     );
   };
 
-  const removeExperience = (index) => {
-    setSavedExperiences((prev) =>
-      prev.filter((_, itemIndex) => itemIndex !== index),
+  const removeExperience = async (index) => {
+    const updated = savedExperiences.filter(
+      (_, itemIndex) => itemIndex !== index,
     );
+    setSavedExperiences(updated);
     if (editingExperienceIndex === index) {
       setExperienceDraft(blankExperience);
       setEditingExperienceIndex(null);
       setShowExperienceForm(false);
+    }
+
+    try {
+      await submitSections(["experiences"], {
+        experiences: updated.map(toBackendExperience),
+      });
+    } catch (error) {
+      console.error("Failed to remove experience on the server:", error);
+      alert("Removed locally, but the server update failed. Please try again.");
     }
   };
 
@@ -934,7 +1199,52 @@ const TeacherProfile = () => {
     }
   };
 
-  const addResume = () => {
+  // source is stored capitalized ("Created"/"Uploaded") in local state for
+  // display, but the published contract's enum is lowercase - translated
+  // only at this boundary, same pattern as the other enum maps above.
+  // resume_id/cover_letter_id are UUID-typed on the backend, so locally
+  // generated ids must be real UUIDs, not Date.now() integers.
+  const toBackendResume = (r) => ({
+    resume_id: r.id,
+    source: r.source === "Uploaded" ? "uploaded" : "created",
+    title: r.title,
+    file_name: r.fileName,
+    file_url: r.fileUrl || null,
+    format: r.format,
+    skill: r.skill || null,
+    score: typeof r.score === "number" ? r.score : null,
+    full_name: r.fullName || null,
+    email: r.email || null,
+    mobile: r.mobile || null,
+    address: r.address || null,
+    current_job_title: r.currentJobTitle || null,
+    summary: r.summary || null,
+    skills: r.skills || null,
+    education: r.education || null,
+    experience: r.experience || null,
+    certifications: r.certifications || null,
+    languages: r.languages || null,
+    resume_achievements: r.achievements || null,
+    notes: r.notes || null,
+    is_active: true,
+  });
+
+  // cover_letters is the actual top-level JSON key on the Teacher contract
+  // for this list (plain camelCase "coverLetters" - no snake_case
+  // @JsonProperty exists for it, confirmed against the contract jar), but
+  // the objects inside it do use snake_case per-field names.
+  const toBackendCoverLetter = (cl) => ({
+    cover_letter_id: cl.id,
+    title: cl.title,
+    source: cl.source,
+    content: cl.content,
+    resume_id: cl.resume_id || null,
+    job_id: null,
+    file_name: null,
+    file_url: null,
+  });
+
+  const addResume = async () => {
     if (resumeMode === "create") {
       if (!resumeDraft.title.trim()) {
         alert("Please add a resume title.");
@@ -999,7 +1309,7 @@ const TeacherProfile = () => {
       const cleanTitle = resumeDraft.title.trim();
 
       const newResume = {
-        id: Date.now(),
+        id: crypto.randomUUID(),
         name: cleanTitle + "." + extension,
         title: cleanTitle,
         fullName: `${teacherData.firstName} ${teacherData.lastName}`.trim(),
@@ -1027,7 +1337,6 @@ const TeacherProfile = () => {
 
       const updated = [...savedResumes, newResume];
       setSavedResumes(updated);
-      localStorage.setItem("skooljobs_resumes", JSON.stringify(updated));
 
       setResumeDraft({
         title: "",
@@ -1047,7 +1356,16 @@ const TeacherProfile = () => {
         fileName: "",
         notes: "",
       });
-      alert("Resume created successfully!");
+
+      try {
+        await submitSections(["resumes"], {
+          resumes: updated.map(toBackendResume),
+        });
+        alert("Resume created successfully!");
+      } catch (error) {
+        console.error("Failed to save resume:", error);
+        alert("Resume was created, but saving it to the server failed. Please try again.");
+      }
     } else {
       if (!resumeDraft.title.trim() && !resumeDraft.fileName.trim()) {
         alert("Please enter a resume title or choose a file.");
@@ -1068,8 +1386,13 @@ const TeacherProfile = () => {
       const cleanTitle =
         resumeDraft.title.trim() ||
         resumeDraft.fileName.replace(/\.[^/.]+$/, "");
+      // NOTE: no file-storage backend exists yet (by design, not wired up
+      // here without separate approval - see Resume contract fields:
+      // file_url stays null). Only metadata persists; the picked file's
+      // bytes are never actually uploaded anywhere, same as before this
+      // change - this path cannot produce a retrievable file today.
       const newResume = {
-        id: Date.now(),
+        id: crypto.randomUUID(),
         name: resumeDraft.fileName,
         title: cleanTitle,
         fullName: `${teacherData.firstName} ${teacherData.lastName}`.trim(),
@@ -1085,7 +1408,6 @@ const TeacherProfile = () => {
 
       const updated = [...savedResumes, newResume];
       setSavedResumes(updated);
-      localStorage.setItem("skooljobs_resumes", JSON.stringify(updated));
 
       setResumeDraft({
         title: "",
@@ -1105,14 +1427,31 @@ const TeacherProfile = () => {
         fileName: "",
         notes: "",
       });
-      alert("Resume uploaded successfully!");
+
+      try {
+        await submitSections(["resumes"], {
+          resumes: updated.map(toBackendResume),
+        });
+        alert("Resume metadata uploaded successfully! (No file storage is wired up yet, so only the title/filename/format are saved, not the actual file.)");
+      } catch (error) {
+        console.error("Failed to save resume:", error);
+        alert("Resume was added, but saving it to the server failed. Please try again.");
+      }
     }
   };
 
-  const handleDeleteResume = (index) => {
+  const handleDeleteResume = async (index) => {
     const updated = savedResumes.filter((_, i) => i !== index);
     setSavedResumes(updated);
-    localStorage.setItem("skooljobs_resumes", JSON.stringify(updated));
+
+    try {
+      await submitSections(["resumes"], {
+        resumes: updated.map(toBackendResume),
+      });
+    } catch (error) {
+      console.error("Failed to delete resume on the server:", error);
+      alert("Removed locally, but the server update failed. Please try again.");
+    }
   };
 
   // Each saved field is either a single line/paragraph or several entries
@@ -1263,7 +1602,7 @@ const TeacherProfile = () => {
     URL.revokeObjectURL(url);
   };
 
-  const addAward = () => {
+  const addAward = async () => {
     const award = {
       type: resumeData.awardType,
       name: resumeData.awardName,
@@ -1281,7 +1620,8 @@ const TeacherProfile = () => {
       return;
     }
 
-    setSavedAwards((prev) => [...prev, award]);
+    const updatedAwards = [...savedAwards, award];
+    setSavedAwards(updatedAwards);
     setResumeData((prev) => ({
       ...prev,
       awardType: "",
@@ -1289,9 +1629,18 @@ const TeacherProfile = () => {
       awardBy: "",
       awardYear: "",
     }));
+
+    try {
+      await submitSections(["achievements"], {
+        achievements: toBackendAchievements(updatedAwards, savedCourses),
+      });
+    } catch (error) {
+      console.error("Failed to save achievement:", error);
+      alert("Award was added, but saving it to the server failed. Please try again.");
+    }
   };
 
-  const addCourse = () => {
+  const addCourse = async () => {
     const course = {
       type: resumeData.courseType,
       name: resumeData.courseName,
@@ -1309,7 +1658,8 @@ const TeacherProfile = () => {
       return;
     }
 
-    setSavedCourses((prev) => [...prev, course]);
+    const updatedCourses = [...savedCourses, course];
+    setSavedCourses(updatedCourses);
     setResumeData((prev) => ({
       ...prev,
       courseType: "",
@@ -1317,9 +1667,120 @@ const TeacherProfile = () => {
       conductedBy: "",
       courseYear: "",
     }));
+
+    try {
+      await submitSections(["achievements"], {
+        achievements: toBackendAchievements(savedAwards, updatedCourses),
+      });
+    } catch (error) {
+      console.error("Failed to save achievement:", error);
+      alert("Course was added, but saving it to the server failed. Please try again.");
+    }
   };
 
-  const buildTeacherPayload = () => {
+  // Base identity fields every /teachers/update call needs, regardless of
+  // which section(s) it scopes itself to.
+  // NOTE: the Teacher contract's `teacherId` field has no snake_case
+  // @JsonProperty/alias (unlike every other field) - it only binds from
+  // the literal key "teacherId". Verified against the actual contract
+  // jar: sending "teacher_id" throws UnrecognizedPropertyException, which
+  // means every save using that key would have always been rejected.
+  const baseIdentityPayload = () => ({
+    teacherId: storedUser.id ? String(storedUser.id) : null,
+    teacher_user_id: storedUser.id ? String(storedUser.id) : null,
+  });
+
+  // POSTs a section-scoped update, then re-fetches the profile so the UI
+  // reflects what is actually in MongoDB rather than assuming the 202
+  // Accepted response means the write has landed (UPDATE_TEACHER is
+  // processed asynchronously off Kafka).
+  const submitSections = async (sections, extraFields) => {
+    const payload = {
+      ...baseIdentityPayload(),
+      updated_sections: sections,
+      ...extraFields,
+    };
+
+    await updateTeacherProfile(payload);
+    await refreshProfileFromBackend();
+  };
+
+  // Polls GET /teachers/me a few times (the command is processed
+  // asynchronously) and syncs the relevant local state from whatever
+  // comes back, so the UI never relies on localStorage as the source of
+  // truth for persisted data.
+  const refreshProfileFromBackend = async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const { data } = await getOwnTeacherProfile();
+        if (data) {
+          applyBackendProfile(data);
+          return data;
+        }
+      } catch (error) {
+        if (error?.response?.status !== 404) {
+          console.error("Failed to refresh teacher profile:", error);
+          return null;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    return null;
+  };
+
+  // Extracted so qualification/experience/achievement saves can send the
+  // exact array they just computed (explicit value) instead of reading
+  // savedQualifications/savedExperiences/savedAwards/savedCourses back out
+  // of component state, which would still hold the pre-update value until
+  // the next render (classic stale-closure risk right after setState).
+  const toBackendQualification = (q) => ({
+    class_level: q.classLevel
+      ? QUALIFICATION_CLASS_LEVEL_MAP[q.classLevel] || q.classLevel
+      : null,
+    school_name: q.school || null,
+    degree: effectiveValue(q.degree, q.degreeOther),
+    course: effectiveValue(q.course, q.courseOther) || null,
+    year_passed: q.year,
+    medium: effectiveValue(q.medium, q.mediumOther) || null,
+    mode: q.mode ? QUALIFICATION_MODE_MAP[q.mode] || q.mode : undefined,
+    percentage: q.percentage || null,
+    university: effectiveValue(q.university, q.universityOther) || null,
+    college: effectiveValue(q.college, q.collegeOther) || null,
+  });
+
+  const toBackendExperience = (e) => ({
+    school_name: e.school,
+    is_current_employer: e.currentEmployer,
+    board: effectiveValue(e.board, e.boardOther) || null,
+    start_date: e.startDate || undefined,
+    end_date: e.endDate || null,
+    main_subject: effectiveValue(e.mainSubject, e.mainSubjectOther) || undefined,
+    other_subjects: effectiveValue(e.otherSubjects, e.otherSubjectsOther) || null,
+    post_held: effectiveValue(e.post, e.postOther),
+    salary_ctc_annual: e.salary ? Number(e.salary) : null,
+    monthly_take_home: e.monthlyTakeHome ? Number(e.monthlyTakeHome) : null,
+    reason_for_leaving: effectiveValue(e.reason, e.reasonOther) || null,
+    details: e.details || null,
+  });
+
+  const toBackendAchievements = (awards, courses) => [
+    ...awards.map((a) => ({
+      category: "award",
+      type: a.type || undefined,
+      name: a.name,
+      issued_by: a.by || undefined,
+      year: a.year || undefined,
+    })),
+    ...courses.map((c) => ({
+      category: "course",
+      type: c.type || undefined,
+      name: c.name,
+      issued_by: c.by || undefined,
+      year: c.year || undefined,
+    })),
+  ];
+
+  const buildTeacherPayload = (sections) => {
     const dob =
       teacherData.dobDay && teacherData.dobMonth && teacherData.dobYear
         ? {
@@ -1341,100 +1802,84 @@ const TeacherProfile = () => {
         proficiency: LANGUAGE_PROFICIENCY_MAP[lang.status] || lang.status,
       }));
 
-    const qualifications = savedQualifications.map((q) => ({
-      class_level: q.classLevel
-        ? QUALIFICATION_CLASS_LEVEL_MAP[q.classLevel] || q.classLevel
-        : null,
-      school_name: q.school || null,
-      degree: effectiveValue(q.degree, q.degreeOther),
-      course: effectiveValue(q.course, q.courseOther) || null,
-      year_passed: q.year,
-      medium: effectiveValue(q.medium, q.mediumOther) || null,
-      mode: q.mode ? QUALIFICATION_MODE_MAP[q.mode] || q.mode : undefined,
-      percentage: q.percentage || null,
-      university: effectiveValue(q.university, q.universityOther) || null,
-      college: effectiveValue(q.college, q.collegeOther) || null,
-    }));
+    const qualifications = savedQualifications.map(toBackendQualification);
+    const experiences = savedExperiences.map(toBackendExperience);
+    const achievements = toBackendAchievements(savedAwards, savedCourses);
 
-    const experiences = savedExperiences.map((e) => ({
-      school_name: e.school,
-      is_current_employer: e.currentEmployer,
-      board: effectiveValue(e.board, e.boardOther) || null,
-      start_date: e.startDate || undefined,
-      end_date: e.endDate || null,
-      main_subject: effectiveValue(e.mainSubject, e.mainSubjectOther) || undefined,
-      other_subjects: effectiveValue(e.otherSubjects, e.otherSubjectsOther) || null,
-      post_held: effectiveValue(e.post, e.postOther),
-      salary_ctc_annual: e.salary ? Number(e.salary) : null,
-      monthly_take_home: e.monthlyTakeHome ? Number(e.monthlyTakeHome) : null,
-      reason_for_leaving: effectiveValue(e.reason, e.reasonOther) || null,
-      details: e.details || null,
-    }));
-
-    const achievements = [
-      ...savedAwards.map((a) => ({
-        category: "award",
-        type: a.type || undefined,
-        name: a.name,
-        issued_by: a.by || undefined,
-        year: a.year || undefined,
-      })),
-      ...savedCourses.map((c) => ({
-        category: "course",
-        type: c.type || undefined,
-        name: c.name,
-        issued_by: c.by || undefined,
-        year: c.year || undefined,
-      })),
-    ];
-
+    // The Signup → TeacherProfile Kafka consumer auto-creates a Teacher
+    // record (teacher_id === the signed-up user's id) for every TEACHER
+    // signup, so by the time this page is reachable that record already
+    // exists — every save from here is logically an UPDATE against it.
+    // Only the fields belonging to the requested section(s) are included;
+    // the backend merges by section, so anything left out here is simply
+    // never touched rather than blanked out.
+    const sectionSet = new Set(sections || []);
     const payload = {
-      title: teacherData.title || undefined,
-      first_name: teacherData.firstName,
-      middle_name: teacherData.middleName || null,
-      last_name: teacherData.lastName,
-      dob,
-      age: teacherData.age ? Number(teacherData.age) : null,
-      nationality: teacherData.nationality || undefined,
-      current_job_title:
-        effectiveValue(teacherData.currentJob, teacherData.currentJobOther) ||
-        null,
-      main_subject: effectiveValue(
-        teacherData.mainSubject,
-        teacherData.mainSubjectOther,
-      ),
-      additional_subjects: selectedAdditionalSubjects,
-      classes_taught: classesTaught,
-      languages,
-      highest_qualification_1:
-        effectiveValue(
-          teacherData.highestQualificationOne,
-          teacherData.highestQualificationOneOther,
-        ) || null,
-      highest_qualification_2:
-        effectiveValue(
-          teacherData.highestQualificationTwo,
-          teacherData.highestQualificationTwoOther,
-        ) || null,
-      profile_photo_url: profileImage || null,
-      summary: teacherData.briefWriteUp || null,
-      contact: {
-        mobile: teacherData.mobile,
-        whatsapp: teacherData.whatsapp || null,
-        same_as_mobile: teacherData.sameAsMobile,
-        primary_email: teacherData.primaryEmail,
-        secondary_email: teacherData.secondaryEmail || null,
-      },
-      address: {
-        pin_code: teacherData.pinCode || null,
-        city: teacherData.city || null,
-        state: teacherData.state || null,
-        full_address: teacherData.address || null,
-      },
-      qualifications,
-      experiences,
-      achievements,
+      ...baseIdentityPayload(),
+      updated_sections: sections,
     };
+
+    if (sectionSet.has("basicInfo")) {
+      Object.assign(payload, {
+        title: teacherData.title || undefined,
+        first_name: teacherData.firstName,
+        middle_name: teacherData.middleName || null,
+        last_name: teacherData.lastName,
+        dob,
+        age: teacherData.age ? Number(teacherData.age) : null,
+        nationality: teacherData.nationality || undefined,
+        current_job_title:
+          effectiveValue(teacherData.currentJob, teacherData.currentJobOther) ||
+          null,
+        main_subject: effectiveValue(
+          teacherData.mainSubject,
+          teacherData.mainSubjectOther,
+        ),
+        additional_subjects: selectedAdditionalSubjects,
+        classes_taught: classesTaught,
+        languages,
+        highest_qualification_1:
+          effectiveValue(
+            teacherData.highestQualificationOne,
+            teacherData.highestQualificationOneOther,
+          ) || null,
+        highest_qualification_2:
+          effectiveValue(
+            teacherData.highestQualificationTwo,
+            teacherData.highestQualificationTwoOther,
+          ) || null,
+        profile_photo_url: profileImage || null,
+        summary: teacherData.briefWriteUp || null,
+      });
+    }
+
+    if (sectionSet.has("contact")) {
+      Object.assign(payload, {
+        contact: {
+          mobile: teacherData.mobile,
+          whatsapp: teacherData.whatsapp || null,
+          same_as_mobile: teacherData.sameAsMobile,
+          primary_email: teacherData.primaryEmail,
+          secondary_email: teacherData.secondaryEmail || null,
+        },
+        address: {
+          pin_code: teacherData.pinCode || null,
+          city: teacherData.city || null,
+          state: teacherData.state || null,
+          full_address: teacherData.address || null,
+        },
+      });
+    }
+
+    if (sectionSet.has("qualifications")) {
+      payload.qualifications = qualifications;
+    }
+    if (sectionSet.has("experiences")) {
+      payload.experiences = experiences;
+    }
+    if (sectionSet.has("achievements")) {
+      payload.achievements = achievements;
+    }
 
     return payload;
   };
@@ -1442,12 +1887,12 @@ const TeacherProfile = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (activeSection === "qualification" && showQualificationForm) {
-      if (saveQualificationDraft()) alert("Qualification saved successfully");
+      if (await saveQualificationDraft()) alert("Qualification saved successfully");
       return;
     }
 
     if (activeSection === "experience" && showExperienceForm) {
-      if (saveExperienceDraft()) alert("Experience saved successfully");
+      if (await saveExperienceDraft()) alert("Experience saved successfully");
       return;
     }
 
@@ -1480,45 +1925,28 @@ const TeacherProfile = () => {
       console.error("Error saving profile to localStorage:", err);
     }
 
+    if (!storedUser.id) {
+      alert("Your session is missing a user id. Please log in again before saving.");
+      return;
+    }
+
     savingRef.current = true;
     setSaving(true);
     try {
-      // TEMPORARY DEBUG LOGGING — remove after root cause is confirmed.
-      console.log(
-        "TEACHER PAYLOAD DEBUG — raw state values:",
-        {
-          firstName: teacherData.firstName,
-          middleName: teacherData.middleName,
-          lastName: teacherData.lastName,
-          currentJob: teacherData.currentJob,
-          currentJobOther: teacherData.currentJobOther,
-          mainSubject: teacherData.mainSubject,
-          mainSubjectOther: teacherData.mainSubjectOther,
-          selectedAdditionalSubjects,
-          classTaughtOne: teacherData.classTaughtOne,
-          classTaughtTwo: teacherData.classTaughtTwo,
-          classTaughtOneOther: teacherData.classTaughtOneOther,
-          classTaughtTwoOther: teacherData.classTaughtTwoOther,
-          highestQualificationOne: teacherData.highestQualificationOne,
-          highestQualificationOneOther: teacherData.highestQualificationOneOther,
-          highestQualificationTwo: teacherData.highestQualificationTwo,
-          highestQualificationTwoOther: teacherData.highestQualificationTwoOther,
-          profileImage,
-        },
-      );
-
-      const payload = buildTeacherPayload();
-
-      // TEMPORARY DEBUG LOGGING — remove after root cause is confirmed.
-      console.log(
-        "TEACHER PAYLOAD BEFORE API:",
-        JSON.stringify(payload, null, 2),
-      );
-
-      // CREATE: POST /teachers → 202 CommandAcceptedResponse
-      // { commandId, status, message?, timestamp? } — no teacher id is returned.
-      const response = await saveTeacher(payload);
-      alert(response?.data?.message || "Profile saved successfully");
+      // UPDATE: POST /teachers/update → 202 CommandAcceptedResponse.
+      // The signup-driven auto-created record (teacherId = storedUser.id)
+      // already exists by the time a logged-in TEACHER reaches this page,
+      // so this always updates it rather than creating a second one.
+      // Section-scoped: the footer Save button only ever appears on the
+      // My Profile / Contact / Achievements tabs; Achievements has its
+      // own Add buttons that already save themselves, so a footer submit
+      // from that tab is harmless (just re-saves basicInfo) rather than a
+      // silent achievements no-op.
+      const sections = activeSection === "contact" ? ["contact"] : ["basicInfo"];
+      const payload = buildTeacherPayload(sections);
+      await updateTeacherProfile(payload);
+      await refreshProfileFromBackend();
+      alert("Profile saved successfully");
     } catch (error) {
       console.error("Error saving teacher profile:", error);
       // ErrorResponse { code, message } from the API, when present.
@@ -3861,7 +4289,7 @@ const TeacherProfile = () => {
                         type="button"
                         variant="filled"
                         size="sm"
-                        onClick={() => {
+                        onClick={async () => {
                           const coverLetterContent = validateText(
                             coverLetterState.generated,
                           );
@@ -3873,7 +4301,7 @@ const TeacherProfile = () => {
                             (r) => r.title === coverLetterState.selectedResume,
                           );
                           const newCoverLetter = {
-                            id: Date.now(),
+                            id: crypto.randomUUID(),
                             title: `Cover Letter - ${coverLetterState.selectedJob}`,
                             source: "ai_generated",
                             content: coverLetterState.generated,
@@ -3884,11 +4312,18 @@ const TeacherProfile = () => {
                           };
                           const updated = [...savedCoverLetters, newCoverLetter];
                           setSavedCoverLetters(updated);
-                          localStorage.setItem(
-                            "skooljobs_cover_letters",
-                            JSON.stringify(updated),
-                          );
-                          alert("Cover letter saved!");
+
+                          try {
+                            await submitSections(["coverLetters"], {
+                              coverLetters: updated.map(toBackendCoverLetter),
+                            });
+                            alert("Cover letter saved!");
+                          } catch (error) {
+                            console.error("Failed to save cover letter:", error);
+                            alert(
+                              "Cover letter was added, but saving it to the server failed. Please try again.",
+                            );
+                          }
                         }}
                         className={styles.smallSaveBtnSolid}
                       >
@@ -3954,15 +4389,25 @@ const TeacherProfile = () => {
                             type="button"
                             variant="outlined"
                             size="sm"
-                            onClick={() => {
+                            onClick={async () => {
                               const updated = savedCoverLetters.filter(
                                 (c) => c.id !== cl.id,
                               );
                               setSavedCoverLetters(updated);
-                              localStorage.setItem(
-                                "skooljobs_cover_letters",
-                                JSON.stringify(updated),
-                              );
+
+                              try {
+                                await submitSections(["coverLetters"], {
+                                  coverLetters: updated.map(toBackendCoverLetter),
+                                });
+                              } catch (error) {
+                                console.error(
+                                  "Failed to delete cover letter on the server:",
+                                  error,
+                                );
+                                alert(
+                                  "Removed locally, but the server update failed. Please try again.",
+                                );
+                              }
                             }}
                             className={styles.deleteOutlineBtn}
                           >
