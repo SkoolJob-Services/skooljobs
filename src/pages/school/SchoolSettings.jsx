@@ -111,7 +111,7 @@ const SchoolSettings = () => {
         memberRole: "Member", // Restricted role
         password: formData.password,
         schoolEmail: currentUser.email,
-        companyName: currentUser.companyName || currentUser.name || "Green Valley School",
+        companyName: currentUser.companyName || currentUser.schoolName || currentUser.name || "",
       };
       const updated = [...members, newMember];
       setMembers(updated);
@@ -155,7 +155,7 @@ const SchoolSettings = () => {
         memberRole: "Member", // demoted to Member
         password: currentUser.password || "password",
         schoolEmail: promotedMember.email,
-        companyName: currentUser.companyName || "Green Valley School",
+        companyName: currentUser.companyName || currentUser.schoolName || "",
       };
 
       // 2. Add promoted member as Admin to users database
@@ -168,7 +168,7 @@ const SchoolSettings = () => {
         phone: promotedMember.phone,
         password: promotedMember.password,
         name: promotedMember.name,
-        companyName: currentUser.companyName || "Green Valley School",
+        companyName: currentUser.companyName || currentUser.schoolName || "",
         role: "employer",
       };
 

@@ -44,7 +44,14 @@ export function InvitePage() {
     setLoad({ status: "loading" });
     authApi
       .getInviteDetails(token)
-      .then((details) => !cancelled && setLoad({ status: "ready", details }))
+      .then((details) => {
+        if (cancelled) return;
+        // Prefill the invitee's name from the invite (still editable).
+        const invitee = details as { inviteeFirstName?: string; inviteeLastName?: string };
+        setFirstName((current) => current || invitee.inviteeFirstName || "");
+        setLastName((current) => current || invitee.inviteeLastName || "");
+        setLoad({ status: "ready", details });
+      })
       .catch((error: unknown) => !cancelled && setLoad({ status: "error", message: errorMessage(error, "inviteDetails") }));
     return () => {
       cancelled = true;
@@ -69,6 +76,8 @@ export function InvitePage() {
 
   const { details } = load;
   const expires = formatDate(details.expiresAt);
+  // Display-only label of what the invite is for (e.g. the school name).
+  const schoolLabel = (details as { contextLabel?: string }).contextLabel;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -105,7 +114,8 @@ export function InvitePage() {
         <>
           {details.invitedByName ? <strong>{details.invitedByName}</strong> : "Someone"} invited you to join
           {details.tenantName ? <> <strong>{details.tenantName}</strong></> : " this organisation"}
-          {details.role ? <> as <strong>{humanizeCode(details.role)}</strong></> : null}.
+          {details.role ? <> as <strong>{humanizeCode(details.role)}</strong></> : null}
+          {schoolLabel ? <> for <strong>{schoolLabel}</strong></> : null}.
         </>
       }
       step="Step 1 of 2"

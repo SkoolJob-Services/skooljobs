@@ -1,0 +1,319 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 80px 40px;
+  background: linear-gradient(125deg, #044890, #669aca);
+  color: #fff;
+}
+.heroWrap {
+  max-width: 1300px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 50px;
+  flex-wrap: wrap;
+}
+.heroLeft {
+  flex: 1;
+  min-width: 300px;
+}
+.heroLeft h1 {
+  margin-bottom: 20px;
+  color: #fff;
+  font-size: 50px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+.heroLeft p {
+  max-width: 600px;
+  margin-bottom: 30px;
+  color: #eaf4ff;
+  font-size: 17px;
+  line-height: 1.8;
+}
+.heroButtons {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.btnPrimary,
+.btnSecondary {
+  padding: 15px 30px;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: 0.3s ease;
+}
+.btnPrimary {
+  background: #fff;
+  color: var(--color-primary);
+}
+.btnPrimary:hover {
+  transform: translateY(-3px);
+}
+.btnSecondary {
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+.btnSecondary:hover {
+  background: #fff;
+  color: var(--color-primary);
+}
+
+.heroRight {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  justify-content: center;
+}
+.resumeCard {
+  width: 340px;
+  padding: 25px;
+  border-radius: 25px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+.resumeTop {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+.avatar {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #044890, #669aca);
+}
+.resumeTop h3 {
+  color: #222;
+  font-size: 22px;
+}
+.resumeTop span {
+  color: #777;
+  font-size: 14px;
+}
+.line {
+  height: 10px;
+  margin-bottom: 15px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #e8eef7;
+}
+.line span {
+  display: block;
+  height: 100%;
+  border-radius: 20px;
+  background: linear-gradient(90deg, #044890, #669aca);
+}
+.skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 25px;
+}
+.skills span {
+  padding: 8px 14px;
+  border-radius: 30px;
+  background: #eef5ff;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+.floating {
+  position: absolute;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.float1 {
+  width: 120px;
+  height: 120px;
+  top: -40px;
+  right: -40px;
+}
+.float2 {
+  width: 90px;
+  height: 90px;
+  bottom: -20px;
+  left: -20px;
+}
+
+.sectionTitle {
+  margin-bottom: 40px;
+  text-align: center;
+  color: var(--color-primary);
+  font-size: 38px;
+  font-weight: 800;
+}
+
+.templates {
+  padding: 70px 20px;
+  background: var(--color-light);
+}
+.templateGrid {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+}
+.template {
+  display: block;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(21, 41, 63, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.template:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(21, 41, 63, 0.18);
+}
+.template img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.features {
+  padding: 70px 20px;
+  background: #fff;
+}
+.featureGrid {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+.feature {
+  padding: 28px 24px;
+  border: 1px solid rgba(21, 41, 63, 0.12);
+  border-radius: 18px;
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.feature:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 35px rgba(21, 41, 63, 0.1);
+}
+.featureIcon,
+.howIcon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: var(--color-primary);
+  color: #fff;
+}
+.feature h4 {
+  margin-bottom: 10px;
+  color: var(--color-primary-text);
+  font-size: 18px;
+  font-weight: 800;
+}
+.feature p {
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.how {
+  padding: 70px 20px;
+  background: var(--color-light);
+}
+.howGrid {
+  max-width: 1300px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+.howCard {
+  padding: 34px 26px;
+  border: 2px solid var(--color-secondary);
+  border-radius: 24px;
+  background: #fff;
+  transition: transform 0.3s ease;
+}
+.howCard:hover {
+  transform: translateY(-8px);
+}
+.howCard .howIcon {
+  margin: 0 0 20px;
+}
+.howCard h4 {
+  margin-bottom: 8px;
+  color: var(--color-primary);
+  font-size: 21px;
+  font-weight: 800;
+}
+.howCard strong {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--color-secondary);
+  font-size: 15px;
+}
+.howCard p {
+  color: var(--color-primary);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.howBlue {
+  background: var(--color-secondary);
+}
+.howBlue h4,
+.howBlue strong,
+.howBlue p {
+  color: #fff;
+}
+
+@media (max-width: 1100px) {
+  .templateGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .featureGrid,
+  .howGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 992px) {
+  .heroWrap {
+    flex-direction: column;
+    text-align: center;
+  }
+  .heroLeft p {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .heroButtons {
+    justify-content: center;
+  }
+  .heroLeft h1 {
+    font-size: 40px;
+  }
+}
+@media (max-width: 600px) {
+  .hero {
+    padding: 60px 20px;
+  }
+  .heroLeft h1 {
+    font-size: 32px;
+  }
+  .resumeCard {
+    width: 100%;
+  }
+  .templateGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .featureGrid,
+  .howGrid {
+    grid-template-columns: 1fr;
+  }
+  .sectionTitle {
+    font-size: 30px;
+  }
+}

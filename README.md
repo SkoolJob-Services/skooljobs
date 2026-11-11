@@ -15,9 +15,12 @@ npm run build && npm run preview
 npm test           # unit tests;  npm run typecheck  checks the TypeScript parts
 ```
 
-Mock logins pick the role from the email/phone: contains `headadmin` → Head admin,
-`admin` → SkoolJobs admin, `member` → School member, `school` → School admin,
-anything else → Teacher (e.g. `school@test.com`, `teacher@test.com`).
+Mock roles come from how the account was created, never from the email text:
+self-signup is always Teacher; a School admin comes only from an invite. To try
+the school flow: log in as `admin@skooljobs.com` → Invite Schools → copy the test
+link → log out → open the link → sign up with OTP 123456 → log in with the
+invited email → School dashboard. Identifiers that never signed up log in as
+Teacher. Mock invites and accounts live in localStorage (`skooljobs_mock_*`).
 
 ## Login, signup and invites
 

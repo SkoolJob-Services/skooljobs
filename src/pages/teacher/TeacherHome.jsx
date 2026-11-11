@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { Button } from "@cloudstrytech/ui-components";
 import {
@@ -10,6 +10,7 @@ import {
   Bell,
 } from "lucide-react";
 import { formatRelativeTime } from "../../lib/teacherdata";
+import { withoutDemoInterviews } from "../../lib/schooldata";
 import styles from "./styles/TeacherHome.module.css";
 
 const TeacherHome = () => {
@@ -22,15 +23,42 @@ const TeacherHome = () => {
     recommendedJobs,
     handleApply,
     handleSave,
+    currentUser,
+    profileCompletion,
+    profileStatus,
+    refreshTeacherProfile,
+    jobsLoading,
   } = useOutletContext();
 
+  // Same interviews and filter as the Interviews page (stored by the school side).
+  const upcomingInterviews = useMemo(() => {
+    let all;
+    try {
+      all = JSON.parse(localStorage.getItem("skooljobs_interviews") || "[]");
+    } catch {
+      all = [];
+    }
+    return withoutDemoInterviews(all)
+      .filter(
+        (iv) =>
+          String(iv.candidateId) === String(currentUser?.id) ||
+          iv.candidateName?.toLowerCase() === displayName.toLowerCase(),
+      )
+      .filter((iv) => iv.status !== "Completed" && iv.status !== "Cancelled")
+      .sort((a, b) => String(`${a.date} ${a.time}`).localeCompare(String(`${b.date} ${b.time}`)));
+  }, [currentUser, displayName]);
+  const nextInterview = upcomingInterviews[0];
+
+  // "This week" counted from when the dashboard opened (render must not read the clock).
+  const [openedAt] = useState(() => Date.now());
+  const weekAgo = openedAt - 7 * 24 * 60 * 60 * 1000;
+  const sentThisWeek = appliedJobs.filter(
+    (job) => job.appliedDate && new Date(job.appliedDate).getTime() >= weekAgo,
+  ).length;
+  const savedCategories = new Set(savedJobs.map((job) => job.skill).filter(Boolean)).size;
+
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, msg: "Shortlisted for Math Teacher interview at Sunrise Public School", time: "2h ago", read: false },
-    { id: 2, msg: "New job matching your profile: English Teacher at Som Lalit School", time: "5h ago", read: false },
-    { id: 3, msg: "Your application for Science Teacher was viewed by Green Valley School", time: "1d ago", read: true },
-    { id: 4, msg: "Welcome to SkoolJobs! Complete your profile to reach 100%", time: "3d ago", read: true },
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
   const handleMarkRead = (id) => {
     setNotifications((p) => p.map((n) => (n.id === id ? { ...n, read: true } : n)));
@@ -112,6 +140,22 @@ const TeacherHome = () => {
           <p className={styles.welcomeSubtitle}>
             Find your next teaching opportunity today.
           </p>
+          {profileStatus === "missing" && (
+            <p className={styles.profileStrengthHint}>
+              Your teacher profile is still being set up.{" "}
+              <button type="button" className={styles.viewAllButton} onClick={refreshTeacherProfile}>
+                Check again
+              </button>
+            </p>
+          )}
+          {profileStatus === "error" && (
+            <p className={styles.profileStrengthHint}>
+              Your profile couldn&apos;t be loaded.{" "}
+              <button type="button" className={styles.viewAllButton} onClick={refreshTeacherProfile}>
+                Try again
+              </button>
+            </p>
+          )}
         </div>
 
         <div className={styles.welcomeRightCol}>
@@ -137,15 +181,21 @@ const TeacherHome = () => {
           {/* Profile Strength progress tracker */}
           <div className={styles.profileStrengthWrap}>
             <div className={styles.profileStrengthRow}>
-              <span className={styles.profileStrengthPercent}>86% Complete</span>
+              <span className={styles.profileStrengthPercent}>{profileCompletion}% Complete</span>
               <span className={styles.profileStrengthLabel}>Profile Strength</span>
             </div>
             <div className={styles.progressTrack}>
-              <div className={styles.progressFill} style={{ width: "86%" }} />
+              <div className={styles.progressFill} style={{ width: `${profileCompletion}%` }} />
             </div>
-            <p className={styles.profileStrengthHint}>
-              ⚡ Complete your profile to reach 100%
-            </p>
+            {profileCompletion < 100 && (
+              <button
+                type="button"
+                className={styles.profileStrengthHint}
+                onClick={() => navigate("/teacher/profile")}
+              >
+                ⚡ Complete your profile to reach 100%
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -166,7 +216,9 @@ const TeacherHome = () => {
         </div>
 
         <div className={styles.jobListWrap}>
-          {recommendedJobs.length === 0 ? (
+          {jobsLoading ? (
+            <p className={styles.jobListEmpty}>Loading jobs…</p>
+          ) : recommendedJobs.length === 0 ? (
             <p className={styles.jobListEmpty}>
               No recommended jobs found. Update your profile skills to match listings.
             </p>
@@ -257,7 +309,7 @@ const TeacherHome = () => {
             {appliedJobs.length}
           </p>
           <p className={styles.metricFootnoteGreen}>
-            +12% Sent this week
+            {sentThisWeek} sent this week
           </p>
         </button>
 
@@ -275,9 +327,11 @@ const TeacherHome = () => {
               <Calendar size={18} />
             </span>
           </div>
-          <p className={styles.metricValue}>03</p>
+          <p className={styles.metricValue}>
+            {String(upcomingInterviews.length).padStart(2, "0")}
+          </p>
           <p className={styles.metricFootnoteBlue}>
-            Next: Tomorrow, 10:00 AM
+            {nextInterview ? `Next: ${nextInterview.date}, ${nextInterview.time}` : "None scheduled yet"}
           </p>
         </button>
 
@@ -299,7 +353,9 @@ const TeacherHome = () => {
             {savedJobs.length}
           </p>
           <p className={styles.metricFootnoteSlate}>
-            Across 12 categories
+            {savedJobs.length === 0
+              ? "Save jobs to compare later"
+              : `Across ${savedCategories} ${savedCategories === 1 ? "category" : "categories"}`}
           </p>
         </button>
       </div>
@@ -314,6 +370,11 @@ const TeacherHome = () => {
               Recent Activity
             </h3>
             <div className={styles.activityListWrap}>
+              {activities.length === 0 && (
+                <p className={styles.jobListEmpty}>
+                  Your applications, saved jobs and profile updates will show here.
+                </p>
+              )}
               {activities.slice(0, 4).map((activity, index) => (
                 <div
                   key={`${activity.message}-${index}`}
@@ -346,12 +407,21 @@ const TeacherHome = () => {
             </div>
 
             <div className={styles.interviewDetailsBox}>
-              <p className={styles.interviewDetailsTitle}>
-                Math Teacher Interview @ Sunrise Public School
-              </p>
-              <p className={styles.interviewDetailsTime}>
-                Oct 24, 10:00 AM
-              </p>
+              {nextInterview ? (
+                <>
+                  <p className={styles.interviewDetailsTitle}>
+                    {nextInterview.role || nextInterview.jobTitle || "Interview"}
+                    {nextInterview.school ? ` @ ${nextInterview.school}` : ""}
+                  </p>
+                  <p className={styles.interviewDetailsTime}>
+                    {nextInterview.date}, {nextInterview.time}
+                  </p>
+                </>
+              ) : (
+                <p className={styles.interviewDetailsTime}>
+                  No upcoming interviews. Schools will schedule them here when they shortlist you.
+                </p>
+              )}
             </div>
             <Button
               variant="filled"

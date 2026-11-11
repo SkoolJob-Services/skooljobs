@@ -1,9 +1,9 @@
-﻿@import "@cloudstrytech/ui-components/styles.css";
+@import "@cloudstrytech/ui-components/styles.css";
 
 /* Cloudstry Button theme override (public token contract) */
 .cst-btn {
-  --cst-button-bg: #15293f;
-  --cst-button-text: #fbf6ec;
+  --cst-button-bg: var(--color-primary);
+  --cst-button-text: #ffffff;
   /* Force the library's own "sm" size scale everywhere, regardless of the
      size prop passed (or omitted) at each call site. */
   --cst-button-height: 32px;
@@ -18,7 +18,7 @@
   border-width: 0;
   border-style: solid;
   border-color: #e5e7eb;
-  font-family: "Montserrat", sans-serif;
+  font-family: var(--font-body);
 }
 
 html {
@@ -72,33 +72,66 @@ ul, ol {
   list-style: none;
 }
 
-/* Theme variables */
+/* Theme variables — SkoolJobs website palette (dev.skooljobs.com) */
 :root {
-  --color-bg: #f4ecdc;
-  --color-primary: #15293f;
-  --color-primary-dark: #0c1824;
+  /* Surfaces: white cards on a light-blue page, as on the website */
+  --color-bg: #ffffff;
+  --color-light: #e7f6ff;
+  --color-page: #e7f6ff;
+
+  /* Brand blues */
+  --color-primary: #044890;
+  --color-primary-dark: #03396f;
+  --color-secondary: #669aca;
+  --color-secondary-soft: rgba(102, 154, 202, 0.17);
+
+  /* Text */
   --color-primary-text: #15293f;
-  --color-secondary: #45566a;
-  --color-light: #f4ecdc;
-  --color-border: #231a07;
+  --color-text: #364151;
+  --color-muted: #5d6873;
 
-  --font-heading: "Montserrat", sans-serif;
-  --font-body: "Montserrat", sans-serif;
+  /* Accents used on the website */
+  --color-cream: #f4ecdc;
+  --color-cream-light: #fbf6ec;
+  --color-accent: #e89b2c;
+  --color-coral: #d45d4e;
 
-  --shadow-soft: 0 18px 45px rgba(21, 41, 63, 0.12);
-  --gradient-hero: linear-gradient(135deg, rgba(21, 41, 63, 0.96), rgba(69, 86, 106, 0.78));
+  --color-border: #d1dae5;
+
+  --font-heading: "Manrope", "Inter", sans-serif;
+  --font-body: "Inter", sans-serif;
+
+  --shadow-soft: 0 15px 40px rgba(21, 41, 63, 0.09);
+  --gradient-hero: linear-gradient(135deg, #669aca 0%, #044890 100%);
+
+  /* Cloudstry UI components */
+  --cst-input-focus: var(--color-primary);
+  --cst-chip-filter-selected-color: var(--color-primary);
+  --cst-chip-icon-color: var(--color-primary);
+  --cst-combobox-check-color: var(--color-primary);
+  --cst-combobox-create-color: var(--color-primary);
+  --cst-combobox-option-active-bg: rgba(4, 72, 144, 0.08);
+  --cst-combobox-option-selected-color: var(--color-primary);
+  --cst-icon-btn-icon-color: var(--color-primary);
+  --cst-icon-btn-outlined-icon-color: var(--color-primary);
+  --cst-icon-btn-filled-container-color: var(--color-primary);
+  --cst-icon-btn-tonal-container-color: var(--color-light);
+  --cst-icon-btn-tonal-icon-color: var(--color-primary);
+  --cst-fab-primary-container-color: var(--color-primary);
+  --cst-fab-icon-color: var(--color-primary);
+  --cst-menu-bg: #ffffff;
 }
 
 html, body {
   font-family: var(--font-body);
-  color: #2b2b25;
-  background-color: var(--color-bg);
+  color: var(--color-text);
+  background-color: var(--color-page);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
-  background-color: var(--color-bg);
+  background-color: var(--color-page);
   min-height: 100vh;
 }
 

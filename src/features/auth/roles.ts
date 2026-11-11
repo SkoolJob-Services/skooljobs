@@ -1,26 +1,25 @@
 /**
  * App roles and how they are worked out from the access token.
  *
- * The role codes come from the SkoolJobs RolePermissionMapping in
- * system-configuration (ADMIN, SCHOOL_ADMIN, SCHOOL_MEMBER, TEACHER).
- * Which claim the signup service uses (roles / role / authorities /
- * realm_access.roles / scope) is read defensively below.
- * HEAD_ADMIN (one login for several schools) is not in the backend mapping yet;
- * the UI already knows it so the head-admin area works once the role exists.
+ * The app roles map one to one to the token role codes of the SkoolJobs
+ * RolePermissionMapping in system-configuration: ADMIN, SCHOOL_ADMIN,
+ * SCHOOL_MEMBER, TEACHER. Which claim the signup service uses (roles / role /
+ * authorities / realm_access.roles / scope) is read defensively below.
+ * ADMIN also has what used to be the head-admin features (posting and managing
+ * jobs for several schools).
  */
 
-export type AppRole = "ADMIN" | "HEAD_ADMIN" | "SCHOOL_ADMIN" | "SCHOOL_MEMBER" | "TEACHER";
+export type AppRole = "ADMIN" | "SCHOOL_ADMIN" | "SCHOOL_MEMBER" | "TEACHER";
 
 /** Checked in this order: the first role the token grants wins. */
-export const APP_ROLES: AppRole[] = ["ADMIN", "HEAD_ADMIN", "SCHOOL_ADMIN", "SCHOOL_MEMBER", "TEACHER"];
+export const APP_ROLES: AppRole[] = ["ADMIN", "SCHOOL_ADMIN", "SCHOOL_MEMBER", "TEACHER"];
 
-/** Backend role codes that map to each app role (compared upper-case). */
+/** Token role code for each app role (one to one, compared upper-case). */
 export const ROLE_CODES: Record<AppRole, string[]> = {
-  ADMIN: ["ADMIN", "PLATFORM_ADMIN", "SUPER_ADMIN"],
-  HEAD_ADMIN: ["HEAD_ADMIN", "GROUP_ADMIN"],
-  SCHOOL_ADMIN: ["SCHOOL_ADMIN", "EMPLOYER"],
+  ADMIN: ["ADMIN"],
+  SCHOOL_ADMIN: ["SCHOOL_ADMIN"],
   SCHOOL_MEMBER: ["SCHOOL_MEMBER"],
-  TEACHER: ["TEACHER", "CANDIDATE"],
+  TEACHER: ["TEACHER"],
 };
 
 /** Role code sent to POST /invites for each invitable role (SkoolJobs inviteRules). */
@@ -31,7 +30,6 @@ export const INVITE_ROLE_CODE: Partial<Record<AppRole, string>> = {
 
 export const ROLE_LABEL: Record<AppRole, string> = {
   ADMIN: "SkoolJobs admin",
-  HEAD_ADMIN: "Head admin",
   SCHOOL_ADMIN: "School admin",
   SCHOOL_MEMBER: "School member",
   TEACHER: "Teacher",
@@ -47,7 +45,6 @@ export function invitableRoles(role: AppRole): AppRole[] {
 /** Home page of each role's area. */
 export const ROLE_HOME: Record<AppRole, string> = {
   ADMIN: "/admin/dashboard",
-  HEAD_ADMIN: "/head-admin/dashboard",
   SCHOOL_ADMIN: "/school/dashboard",
   SCHOOL_MEMBER: "/school/dashboard",
   TEACHER: "/teacher/dashboard",

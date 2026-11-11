@@ -10,6 +10,7 @@ import { maskIdentifier } from "../../lib/contact";
 import { errorMessage } from "../../lib/errorMessages";
 import { useAuth } from "../auth/AuthContext";
 import { useFlow } from "../FlowContext";
+import { CHANNEL_LABEL, loginChannelFlags } from "../tenant/otpChannels";
 import { OTP_PATTERN } from "../signup/signupForm";
 
 export function LoginVerifyPage() {
@@ -28,7 +29,7 @@ export function LoginVerifyPage() {
   useEffect(() => setOtpError(null), [otp]);
 
   if (!pendingLogin) return <Navigate to="/login" replace />;
-  const { identifier, sessionId, returnTo } = pendingLogin;
+  const { identifier, sessionId, returnTo, channel } = pendingLogin;
 
   async function verify(code: string) {
     if (submittingRef.current || locked) return;
@@ -43,7 +44,7 @@ export function LoginVerifyPage() {
       const response = await authApi.verifyLoginOtp({ identifier, otp: code }, sessionId);
       signIn(response, identifier);
       setPendingLogin(null);
-      navigate(returnTo && returnTo !== "/login" ? returnTo : "/", { replace: true });
+      navigate(returnTo && returnTo !== "/login" && returnTo !== "/" ? returnTo : "/app", { replace: true });
     } catch (error) {
       const status = statusOf(error);
       const message = errorMessage(error, "loginVerify");
@@ -68,7 +69,10 @@ export function LoginVerifyPage() {
     setFormError(null);
     setLocked(false);
     try {
-      const { sessionId: nextSessionId } = await authApi.requestLoginOtp({ identifier });
+      const { sessionId: nextSessionId } = await authApi.requestLoginOtp({
+        identifier,
+        ...(channel ? loginChannelFlags(channel) : {}),
+      });
       setPendingLogin({ ...pendingLogin!, sessionId: nextSessionId });
       snackbar.show({ message: "A new code is on its way.", type: "success" });
     } catch (error) {
@@ -81,7 +85,7 @@ export function LoginVerifyPage() {
       title="Enter your code"
       subtitle={
         <>
-          We sent a 6-digit code to <strong>{maskIdentifier(identifier)}</strong>.
+          We sent a 6-digit code{channel ? ` by ${CHANNEL_LABEL[channel]}` : ""} to <strong>{maskIdentifier(identifier)}</strong>.
         </>
       }
       step="Step 2 of 2"

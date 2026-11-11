@@ -87,7 +87,7 @@ const blankForm = {
   publishTime: "",
 };
 
-const HeadAdminPostJob = () => {
+const AdminPostJob = () => {
   const navigate = useNavigate();
   const { setJobs, currentUser, managedSchools } = useOutletContext();
 
@@ -176,7 +176,7 @@ const HeadAdminPostJob = () => {
     setJobs((p) => [buildJob("Draft"), ...p]);
     setForm(blankForm);
     alert("Job saved as draft!");
-    navigate("/head-admin/manage-jobs");
+    navigate("/admin/manage-jobs");
   };
 
   const handlePublish = () => {
@@ -194,15 +194,11 @@ const HeadAdminPostJob = () => {
       return;
     }
     if (!checkContent()) return;
-    setJobs((p) => [
-      buildJob("Pending Approval", scheduled ? "Scheduled" : "Active"),
-      ...p,
-    ]);
+    // The admin is the approver, so their own job skips the approval queue.
+    setJobs((p) => [buildJob(scheduled ? "Scheduled" : "Active"), ...p]);
     setForm(blankForm);
-    alert(
-      "Job sent to SkoolJobs for approval. Once approved, you can publish it from Manage Jobs.",
-    );
-    navigate("/head-admin/manage-jobs");
+    alert(scheduled ? "Job scheduled." : "Job published.");
+    navigate("/admin/manage-jobs");
   };
 
   return (
@@ -211,7 +207,7 @@ const HeadAdminPostJob = () => {
       <div className={styles.headerCard}>
         <h2 className={styles.headerTitle}>Post a New Job</h2>
         <p className={styles.headerSubtitle}>
-          Create a detailed job post for one of your {managedSchools.length} schools.
+          Create a detailed job post for one of the {managedSchools.length} schools.
         </p>
       </div>
 
@@ -238,7 +234,7 @@ const HeadAdminPostJob = () => {
         <Button
           variant="text"
           type="button"
-          onClick={() => navigate("/head-admin/manage-jobs")}
+          onClick={() => navigate("/admin/manage-jobs")}
         >
           Cancel
         </Button>
@@ -277,4 +273,4 @@ const HeadAdminPostJob = () => {
   );
 };
 
-export default HeadAdminPostJob;
+export default AdminPostJob;

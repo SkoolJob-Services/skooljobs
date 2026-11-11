@@ -38,7 +38,9 @@ export function InviteVerifyPage() {
     try {
       await authApi.completeSignup(inviteCompleteRequest(invite, code), invite.sessionId);
       setPendingInvite(null);
-      navigate("/signup/done", { replace: true });
+      // Verified: the invited account logs in with a login OTP — never straight to a dashboard.
+      snackbar.show({ message: "You're verified. Log in with the email you were invited on.", type: "success" });
+      navigate("/login", { replace: true });
     } catch (error) {
       const status = statusOf(error);
       const message = errorMessage(error, "signupComplete");

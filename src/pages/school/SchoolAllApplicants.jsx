@@ -42,89 +42,19 @@ const SchoolAllApplicants = () => {
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  const teacherProfile = JSON.parse(localStorage.getItem("skooljobs_teacher_data") || "{}");
-
+  // Résumé and profile come only from the applicant's own details, captured from their teacher
+  // profile when they applied (candidate.profile). Missing details show as empty: nothing made up.
   const getResumeData = (candidate) => {
     if (!candidate) return null;
-    const isRahul = candidate.candidateId === 1 || candidate.name.toLowerCase().includes("rahul");
-    if (isRahul) {
-      const teacherQualifications = JSON.parse(localStorage.getItem("skooljobs_teacher_qualifications") || "[]");
-      const teacherExperiences = JSON.parse(localStorage.getItem("skooljobs_teacher_experiences") || "[]");
-      const teacherAchievements = JSON.parse(localStorage.getItem("skooljobs_teacher_achievements") || "[]");
-      return {
-        name: `${teacherProfile.firstName || "Rahul"} ${teacherProfile.lastName || "Sharma"}`.trim(),
-        email: teacherProfile.email || "teacher@gmail.com",
-        phone: teacherProfile.phone || "9876543210",
-        summary: teacherProfile.briefWriteUp || "Dedicated, creative, and student-focused classroom teacher who is committed to providing a high-quality educational experience.",
-        qualifications: teacherQualifications.length > 0
-          ? teacherQualifications.map(q => ({ degree: q.degree, school: q.school, year: `${q.startYear}-${q.endYear}`, score: q.score || q.percentage }))
-          : [
-            { degree: "Bachelor of Education (B.Ed)", school: "Bhopal University", year: "2019-2021", score: "82%" },
-            { degree: "M.Sc in Mathematics", school: "Indore University", year: "2017-2019", score: "9.2 CGPA" }
-          ],
-        experiences: teacherExperiences.length > 0
-          ? teacherExperiences.map(e => ({ jobTitle: e.jobTitle || e.role, schoolName: e.schoolName || e.school, startYear: e.startYear, endYear: e.endYear, details: e.details || e.description }))
-          : [
-            { jobTitle: "Mathematics Teacher", schoolName: "Sunrise Public School", startYear: "2021", endYear: "2024", details: "Handled senior secondary algebra and calculus curriculum. Developed creative classroom teaching aids." }
-          ],
-        achievements: teacherAchievements.length > 0
-          ? teacherAchievements.map(a => ({ name: a.name || a.title, year: a.year, by: a.by || a.issuer }))
-          : [
-            { name: "Best Teacher Award", year: "2023", by: "School Administration" }
-          ]
-      };
-    }
-    const nameKey = candidate.name.toLowerCase();
-    if (nameKey.includes("priya")) {
-      return {
-        name: "Priya Singh",
-        email: "priya.singh@gmail.com",
-        phone: "+91 98123 45678",
-        summary: "Dedicated and result-oriented English Teacher with over 5 years of experience in leading international schools. Proven track record of improving students' reading and writing skills by implementing customized curriculum and creative teaching methodologies.",
-        qualifications: [
-          { degree: "M.A. in English Literature", school: "Delhi University", year: "2018-2020", score: "8.5 CGPA" },
-          { degree: "Bachelor of Education (B.Ed)", school: "LSR, Delhi University", year: "2015-2018", score: "82%" }
-        ],
-        experiences: [
-          { jobTitle: "Senior English Teacher", schoolName: "St. Xavier's High School", startYear: "2021", endYear: "Present", details: "Designed and implemented interactive English language and literature curriculum for grades 9-12. Coordinated annual literature festivals and inter-school debate championships." },
-          { jobTitle: "English Language Tutor", schoolName: "EduPath Online Academy", startYear: "2020", endYear: "2021", details: "Conducted live online English instruction for ESL students globally. Handled batches of 15+ students with customized learning progress trackers." }
-        ],
-        achievements: [
-          { name: "Best Teacher of the Year", year: "2023", by: "St. Xavier's High School" },
-          { name: "Certified IELTS Trainer", year: "2022", by: "British Council" }
-        ]
-      };
-    }
-    if (nameKey.includes("suresh")) {
-      return {
-        name: "Suresh Verma",
-        email: "suresh.verma@yahoo.com",
-        phone: "+91 97654 32109",
-        summary: "Enthusiastic Mathematics Educator with a deep passion for logical reasoning and teaching pedagogy. Experienced in grooming students for competitive math olympiads and building solid algebra/calculus foundation skills.",
-        qualifications: [
-          { degree: "M.Sc. in Mathematics", school: "Banaras Hindu University (BHU)", year: "2016-2018", score: "9.1 CGPA" },
-          { degree: "Bachelor of Education (B.Ed)", school: "BHU", year: "2013-2016", score: "79%" }
-        ],
-        experiences: [
-          { jobTitle: "Mathematics Faculty", schoolName: "Sunrise Public School", startYear: "2019", endYear: "Present", details: "Taught calculus, algebra and geometry to high school students. Designed question banks and mock tests for Board Examinations." }
-        ],
-        achievements: [
-          { name: "National Math Olympiad Coordinator", year: "2024", by: "CBSE board" }
-        ]
-      };
-    }
+    const p = candidate.profile || {};
     return {
-      name: candidate.name,
-      email: `${candidate.name.toLowerCase().replace(/\s+/g, ".")}@example.com`,
-      phone: "+91 99999 88888",
-      summary: `Experienced educator specializing in ${candidate.subject || "Teaching"}. Dedicated to creating an inclusive, positive, and intellectually stimulating environment for all students.`,
-      qualifications: [
-        { degree: candidate.qualification || "B.Ed", school: "State Board University", year: "2016-2018", score: "1st Class" }
-      ],
-      experiences: [
-        { jobTitle: candidate.jobTitle || "Teacher", schoolName: "Global Public School", startYear: "2019", endYear: "Present", details: `Responsible for teaching ${candidate.subject || "relevant subjects"} and conducting regular academic assessments.` }
-      ],
-      achievements: []
+      name: p.name || candidate.name || "",
+      email: p.email || "",
+      phone: p.phone || "",
+      summary: p.summary || "",
+      qualifications: p.qualifications || [],
+      experiences: p.experiences || [],
+      achievements: p.achievements || [],
     };
   };
 
@@ -132,82 +62,21 @@ const SchoolAllApplicants = () => {
 
   const getPublicProfileData = (candidate) => {
     if (!candidate) return null;
-    const isRahul = candidate.candidateId === 1 || candidate.name.toLowerCase().includes("rahul");
-    if (isRahul) {
-      const teacherQualifications = JSON.parse(localStorage.getItem("skooljobs_teacher_qualifications") || "[]");
-      const teacherExperiences = JSON.parse(localStorage.getItem("skooljobs_teacher_experiences") || "[]");
-      const teacherAchievements = JSON.parse(localStorage.getItem("skooljobs_teacher_achievements") || "[]");
-      const totalExpYears = teacherExperiences.reduce((sum, exp) => {
-        if (!exp.startDate) return sum;
-        const end = exp.currentEmployer ? new Date() : (exp.endDate ? new Date(exp.endDate) : new Date());
-        const start = new Date(exp.startDate);
-        return sum + Math.max(0, (end - start) / (1000 * 60 * 60 * 24 * 365));
-      }, 0);
-      return {
-        title: teacherProfile.title || "Mr",
-        firstName: teacherProfile.firstName || "Rahul",
-        lastName: teacherProfile.lastName || "Sharma",
-        currentJob: teacherProfile.currentJob || "Mathematics Teacher",
-        city: teacherProfile.city || "Indore",
-        age: teacherProfile.age || "24",
-        mainSubject: teacherProfile.mainSubject || "Mathematics",
-        experience: totalExpYears > 0 ? `${totalExpYears.toFixed(1)} years` : "3 years",
-        highestDeg: teacherQualifications[0]?.degree || teacherProfile.highestQualificationOne || "B.Ed",
-        university: teacherQualifications[0]?.university || "Bhopal University",
-        summary: teacherProfile.briefWriteUp || "Dedicated and passionate Mathematics Teacher with a focus on student engagement.",
-        awards: teacherAchievements
-      };
-    }
-    const nameKey = candidate.name.toLowerCase();
-    if (nameKey.includes("priya")) {
-      return {
-        title: "Ms",
-        firstName: "Priya",
-        lastName: "Singh",
-        currentJob: "English Teacher",
-        city: "Delhi",
-        age: "27",
-        mainSubject: "English",
-        experience: "5 years",
-        highestDeg: "MA English",
-        university: "Delhi University",
-        summary: "Dedicated and result-oriented English Teacher with over 5 years of experience in leading international schools.",
-        awards: [
-          { name: "Best Teacher of the Year", by: "St. Xavier's High School", year: "2023" }
-        ]
-      };
-    }
-    if (nameKey.includes("suresh")) {
-      return {
-        title: "Mr",
-        firstName: "Suresh",
-        lastName: "Verma",
-        currentJob: "Mathematics Teacher",
-        city: "Bhopal",
-        age: "29",
-        mainSubject: "Mathematics",
-        experience: "6 years",
-        highestDeg: "M.Sc. Mathematics",
-        university: "BHU",
-        summary: "Enthusiastic Mathematics Educator with a deep passion for logical reasoning and teaching pedagogy.",
-        awards: [
-          { name: "National Math Olympiad Coordinator", by: "CBSE board", year: "2024" }
-        ]
-      };
-    }
+    const p = candidate.profile || {};
+    const [first = "", ...rest] = (candidate.name || "").split(" ");
     return {
-      title: "Mr/Ms",
-      firstName: candidate.name.split(" ")[0],
-      lastName: candidate.name.split(" ")[1] || "",
-      currentJob: candidate.jobTitle,
-      city: "Bhopal",
-      age: "26",
-      mainSubject: candidate.subject,
-      experience: candidate.experience,
-      highestDeg: candidate.qualification,
-      university: "State University",
-      summary: `Experienced educator specializing in ${candidate.subject || "teaching"}.`,
-      awards: []
+      title: p.title || "",
+      firstName: p.firstName || first,
+      lastName: p.lastName || rest.join(" "),
+      currentJob: p.currentJob || "",
+      city: p.city || "",
+      age: p.age || "",
+      mainSubject: p.mainSubject || candidate.subject || "",
+      experience: candidate.experience || "",
+      highestDeg: p.highestDegree || candidate.qualification || "",
+      university: p.university || "",
+      summary: p.summary || "",
+      awards: p.achievements || [],
     };
   };
 
@@ -521,10 +390,10 @@ const SchoolAllApplicants = () => {
                 <h2 className={styles.resumeHeaderName}>{resumeData.name}</h2>
                 <p className={styles.resumeHeaderSubtitle}>{drawerApplicant.jobTitle} · {drawerApplicant.subject}</p>
                 <div className={styles.resumeHeaderMeta}>
-                  <span>📧 {resumeData.email}</span>
-                  <span>📞 {resumeData.phone}</span>
-                  {teacherProfile.city && (
-                    <span>📍 {teacherProfile.city}</span>
+                  {resumeData.email && <span>📧 {resumeData.email}</span>}
+                  {resumeData.phone && <span>📞 {resumeData.phone}</span>}
+                  {drawerApplicant.profile?.city && (
+                    <span>📍 {drawerApplicant.profile.city}</span>
                   )}
                 </div>
               </div>
@@ -532,7 +401,9 @@ const SchoolAllApplicants = () => {
               {/* Summary */}
               <div className={styles.sectionBlock}>
                 <h3 className={styles.sectionHeading}>Professional Summary</h3>
-                <p className={styles.sectionBodyText}>{resumeData.summary}</p>
+                <p className={styles.sectionBodyText}>
+                  {resumeData.summary || "The applicant hasn't added a summary yet."}
+                </p>
               </div>
 
               {/* Experience */}

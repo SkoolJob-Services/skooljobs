@@ -18,19 +18,23 @@ export const days = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(
 export const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
 export const years = Array.from({ length: 76 }, (_, i) => String(2025 - i));
 
-// ─── Dashboard mock data ─────────────────────────────────────────────────────
+// ─── Old demo records ────────────────────────────────────────────────────────
+// Earlier versions seeded these into localStorage. They are matched by their exact demo id AND
+// name/title, so real records are never touched, and removed when the school pages load.
 
-export const initialJobs = [
-  { id: 1, title: "Math Teacher", applicants: 22, status: "Active", date: "12 May 2025" },
-  { id: 2, title: "Science Teacher", applicants: 12, status: "Closed", date: "10 May 2025" },
-  { id: 3, title: "English Teacher", applicants: 8, status: "Active", date: "8 May 2025" },
-  { id: 4, title: "Hindi Teacher", applicants: 3, status: "Draft", date: "6 May 2025" },
-];
+const DEMO_JOBS = new Map([[1, "Math Teacher"], [2, "Science Teacher"], [3, "English Teacher"], [4, "Hindi Teacher"]]);
+const DEMO_APPLICANTS = new Map([
+  [1, "Rahul Sharma"], [2, "Priya Singh"], [3, "Amit Kumar"], [4, "Neha Patel"], [5, "Suresh Verma"],
+]);
+const DEMO_INTERVIEWS = new Map([
+  [1, "Rahul Sharma"], [2, "Rahul Sharma"], [3, "Rahul Sharma"], [101, "Priya Singh"], [102, "Suresh Verma"],
+]);
 
-export const initialApplicants = [
-  { id: 1, name: "Rahul Sharma", subject: "Mathematics", experience: "3 yrs", status: "Not Reviewed", avatar: "https://i.pravatar.cc/100?img=12" },
-  { id: 2, name: "Priya Singh", subject: "English", experience: "5 yrs", status: "Shortlisted", avatar: "https://i.pravatar.cc/100?img=16" },
-  { id: 3, name: "Amit Kumar", subject: "Science", experience: "2 yrs", status: "Not Reviewed", avatar: "https://i.pravatar.cc/100?img=11" },
-  { id: 4, name: "Neha Patel", subject: "Hindi", experience: "7 yrs", status: "Rejected", avatar: "https://i.pravatar.cc/100?img=25" },
-  { id: 5, name: "Suresh Verma", subject: "Mathematics", experience: "4 yrs", status: "Shortlisted", avatar: "https://i.pravatar.cc/100?img=30" },
-];
+const isDemo = (demo, id, name) => demo.get(Number(id)) === name;
+
+export const withoutDemoJobs = (list) =>
+  Array.isArray(list) ? list.filter((j) => !isDemo(DEMO_JOBS, j.id, j.title)) : [];
+export const withoutDemoApplicants = (list) =>
+  Array.isArray(list) ? list.filter((a) => !isDemo(DEMO_APPLICANTS, a.id, a.name)) : [];
+export const withoutDemoInterviews = (list) =>
+  Array.isArray(list) ? list.filter((iv) => !isDemo(DEMO_INTERVIEWS, iv.id, iv.candidateName)) : [];

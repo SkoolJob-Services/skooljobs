@@ -1,0 +1,180 @@
+.requiredMark {
+  color: var(--admin-danger);
+  font-weight: 700;
+}
+
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.fieldset + .fieldset {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+.legend {
+  margin-bottom: 1rem;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+
+.grid {
+  display: grid;
+  gap: 1rem 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.fieldNote {
+  margin-top: 1.25rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--admin-muted);
+}
+
+.linkBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.linkEmpty {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 1rem;
+  border: 1px dashed var(--admin-border);
+  border-radius: 1rem;
+  background-color: var(--admin-subtle);
+}
+
+.linkEmpty > span {
+  flex-shrink: 0;
+  background-color: var(--admin-primary-soft);
+  color: var(--admin-primary);
+}
+
+.linkEmptyText {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--admin-muted);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-left: 1.25rem;
+  list-style: decimal;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--admin-text-soft);
+}
+
+.linkRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .linkRow {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+}
+
+.linkField {
+  min-width: 0;
+  flex: 1 1 0%;
+}
+
+.linkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Three-step invitation progress (school → invitation → link). */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.progressStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  color: var(--admin-muted);
+}
+
+.progressStep svg {
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.progressTitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+
+.progressDetail {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--admin-muted);
+  overflow-wrap: anywhere;
+}
+
+.progress_done {
+  color: #065f46;
+}
+
+.progress_failed {
+  color: var(--admin-danger);
+}
+
+.progress_running {
+  color: var(--admin-primary);
+}
+
+.spin {
+  animation: invite-spin 1s linear infinite;
+}
+
+@keyframes invite-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+.linkBody code {
+  overflow-wrap: anywhere;
+}

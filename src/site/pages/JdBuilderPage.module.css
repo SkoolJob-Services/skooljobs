@@ -1,0 +1,286 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 60px 20px;
+  background: linear-gradient(135deg, #044890 0%, #0a5fb6 50%, #669aca 100%);
+}
+.glowTop,
+.glowBottom {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+.glowTop {
+  top: -120px;
+  right: -120px;
+  width: 450px;
+  height: 350px;
+}
+.glowBottom {
+  bottom: -140px;
+  left: -100px;
+  width: 300px;
+  height: 300px;
+}
+.heroWrap {
+  position: relative;
+  z-index: 2;
+  max-width: 1250px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 60px;
+  flex-wrap: wrap;
+}
+.heroLeft {
+  flex: 1;
+  min-width: 300px;
+}
+.pill {
+  display: inline-block;
+  margin-bottom: 30px;
+  padding: 10px 22px;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 14px;
+  backdrop-filter: blur(8px);
+}
+.heroLeft h1 {
+  margin-bottom: 25px;
+  color: #fff;
+  font-size: 46px;
+  line-height: 1.15;
+  font-weight: 800;
+}
+.heroLeft p {
+  max-width: 620px;
+  margin-bottom: 40px;
+  color: #eef5ff;
+  font-size: 19px;
+  line-height: 1.9;
+}
+.startBtn {
+  display: inline-block;
+  padding: 18px 38px;
+  border-radius: 60px;
+  background: #fff;
+  color: var(--color-primary);
+  font-size: 17px;
+  font-weight: 700;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease;
+}
+.startBtn:hover {
+  transform: translateY(-3px);
+}
+
+.heroRight {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  justify-content: center;
+}
+.glassCard {
+  width: 100%;
+  max-width: 500px;
+  padding: 35px;
+  border-radius: 35px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+}
+.dots {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 25px;
+}
+.dots span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+}
+.dots span:nth-child(2) {
+  background: var(--color-secondary);
+}
+.dots span:nth-child(3) {
+  background: #dbeaff;
+}
+.jdCard {
+  margin-bottom: 20px;
+  padding: 22px;
+  border-radius: 22px;
+  background: #fff;
+}
+.jdTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.jdTop h3 {
+  color: var(--color-primary);
+  font-size: 23px;
+}
+.jdTop span {
+  padding: 8px 16px;
+  border-radius: 30px;
+  background: #e9f3ff;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.jdCard p {
+  color: #666;
+  font-size: 15px;
+  line-height: 1.8;
+}
+.jdTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+.jdTags span {
+  padding: 10px 16px;
+  border-radius: 30px;
+  background: #f4f8ff;
+  color: var(--color-primary);
+  font-size: 13px;
+}
+.miniCards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+.miniCards > div {
+  padding: 20px;
+  border-radius: 20px;
+  background: #fff;
+  text-align: center;
+}
+.miniIcon {
+  margin-bottom: 10px;
+  font-size: 35px;
+}
+.miniCards h4 {
+  font-size: 17px;
+  color: var(--color-primary);
+}
+
+.how {
+  padding: 90px 40px;
+  background: #fff;
+}
+.howContainer {
+  max-width: 1400px;
+  margin: auto;
+}
+.howHeading {
+  margin-bottom: 60px;
+  text-align: center;
+}
+.howHeading h2 {
+  margin-bottom: 20px;
+  color: var(--color-primary);
+  font-size: 46px;
+  font-weight: 800;
+}
+.howHeading p {
+  max-width: 700px;
+  margin: auto;
+  color: var(--color-primary);
+  font-size: 18px;
+  line-height: 1.8;
+}
+.howGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 25px;
+}
+.howCard {
+  padding: 40px 30px;
+  border-radius: 24px;
+  transition: 0.3s;
+}
+.howCard:hover {
+  transform: translateY(-8px);
+}
+.whiteCard {
+  background: #fff;
+  border: 2px solid var(--color-secondary);
+}
+.blueCard {
+  background: var(--color-secondary);
+}
+.iconBox {
+  width: 70px;
+  height: 70px;
+  margin-bottom: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 30px;
+}
+.howCard h3 {
+  margin-bottom: 12px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.howCard h4 {
+  margin-bottom: 18px;
+  font-size: 24px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+.howCard p {
+  font-size: 16px;
+  line-height: 1.8;
+}
+.whiteCard h3 {
+  color: var(--color-secondary);
+}
+.whiteCard h4,
+.whiteCard p {
+  color: var(--color-primary);
+}
+.blueCard h3,
+.blueCard h4,
+.blueCard p {
+  color: #fff;
+}
+
+@media (max-width: 1100px) {
+  .howGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 768px) {
+  .heroLeft h1 {
+    font-size: 34px;
+  }
+  .heroLeft h1 br {
+    display: none;
+  }
+  .how {
+    padding: 60px 20px;
+  }
+  .howHeading h2 {
+    font-size: 34px;
+  }
+  .howGrid {
+    grid-template-columns: 1fr;
+  }
+  .glassCard {
+    padding: 22px;
+  }
+}

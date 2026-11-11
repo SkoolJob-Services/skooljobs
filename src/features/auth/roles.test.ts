@@ -18,7 +18,9 @@ describe("roles", () => {
     expect(resolveAppRole(["TEACHER", "SCHOOL_MEMBER"])).toBe("SCHOOL_MEMBER");
     expect(resolveAppRole(["SCHOOL_MEMBER", "SCHOOL_ADMIN"])).toBe("SCHOOL_ADMIN");
     expect(resolveAppRole(["SCHOOL_ADMIN", "ADMIN"])).toBe("ADMIN");
-    expect(resolveAppRole(["HEAD_ADMIN"])).toBe("HEAD_ADMIN");
+    // only the four token codes count: old aliases no longer map to a role
+    expect(resolveAppRole(["PLATFORM_ADMIN"])).toBe("TEACHER");
+    expect(resolveAppRole(["EMPLOYER"])).toBe("TEACHER");
     expect(resolveAppRole([])).toBe("TEACHER");
   });
 

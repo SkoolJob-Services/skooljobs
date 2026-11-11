@@ -141,7 +141,7 @@ const SchoolInterviews = () => {
         candidateName: schedulingFor.name,
         jobTitle: schedulingFor.jobTitle,
         subject: schedulingFor.subject,
-        school: schoolName || "Green Valley School",
+        school: schoolName || "",
         status: "Scheduled",
         ...form,
       }]);

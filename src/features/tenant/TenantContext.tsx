@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { authApi, type TenantInfoResponse } from "../../api";
 import { errorMessage } from "../../lib/errorMessages";
+import { channelsOf, type TenantChannels } from "./otpChannels";
 
 type TenantStatus = "loading" | "ready" | "error";
 
@@ -12,6 +13,8 @@ interface TenantContextValue {
   signupAllowed: boolean;
   /** Signup types a user may choose from (tenant.selfSignupTypes). */
   signupTypes: string[];
+  /** Channels switched on for login codes, signup verification and invites. */
+  channels: TenantChannels;
   retry(): void;
 }
 
@@ -57,6 +60,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       error,
       signupAllowed: policy === undefined || OPEN_POLICIES.includes(policy),
       signupTypes: tenant?.selfSignupTypes ?? [],
+      channels: channelsOf(tenant),
       retry,
     };
   }, [status, tenant, error, retry]);

@@ -20,6 +20,7 @@ import {
   User,
   X,
   Wand2,
+  UserRound,
 } from "lucide-react";
 import SelectOrOther from "../../components/ui/SelectOrOther";
 import { pinStateMap } from "../../lib/teacherdata";
@@ -252,7 +253,7 @@ const TeacherProfile = () => {
   // Ref guard: blocks a second submit before the `saving` re-render lands.
   const savingRef = useRef(false);
   const [profileImage, setProfileImage] = useState(
-    storedUser.profilePhoto || "https://i.pravatar.cc/300?img=12",
+    storedUser.profilePhoto || "",
   );
   const {
     error: profileImageError,
@@ -269,26 +270,27 @@ const TeacherProfile = () => {
       }
     }
     return {
-      title: "Mr",
-      firstName: storedUser.firstName || "Rahul",
+      // Empty until GET /teachers/me fills it in: no demo values that a Save would store.
+      title: "",
+      firstName: storedUser.firstName || "",
       middleName: "",
-      lastName: storedUser.lastName || "Sharma",
+      lastName: storedUser.lastName || "",
       dobDay: "",
       dobMonth: "",
       dobYear: "",
       age: "",
-      nationality: "Indian",
+      nationality: "",
       currentJob: "",
       currentJobOther: "",
-      mainSubject: "Mathematics",
+      mainSubject: "",
       mainSubjectOther: "",
-      additionalSubjects: "History\nGeography\nArt\nMusic",
+      additionalSubjects: "",
       classTaughtOne: "",
       classTaughtOneOther: "",
       classTaughtTwo: "",
       classTaughtTwoOther: "",
-      languageOne: "English",
-      languageStatusOne: "Fluency enough to teach",
+      languageOne: "",
+      languageStatusOne: "",
       languageTwo: "",
       languageStatusTwo: "",
       languageThree: "",
@@ -297,10 +299,10 @@ const TeacherProfile = () => {
       highestQualificationOneOther: "",
       highestQualificationTwo: "",
       highestQualificationTwoOther: "",
-      mobile: storedUser.phone || "9876543210",
+      mobile: storedUser.phone || "",
       whatsapp: "",
       sameAsMobile: false,
-      primaryEmail: storedUser.email || "teacher@gmail.com",
+      primaryEmail: storedUser.email || "",
       secondaryEmail: "",
       pinCode: "",
       city: storedUser.city || "",
@@ -426,9 +428,7 @@ const TeacherProfile = () => {
         /* fall through to defaults below */
       }
     }
-    return [
-      { language: "English", status: "Fluency enough to teach", languageOther: "" },
-    ];
+    return [{ language: "", status: "", languageOther: "" }];
   });
 
 
@@ -4691,11 +4691,27 @@ const TeacherProfile = () => {
           <div className={styles.sidebarProfileCard}>
             <div className={styles.sidebarProfileInner}>
               <div className={styles.sidebarAvatarWrap}>
-                <img
-                  src={profileImage}
-                  alt="profile"
-                  className={styles.sidebarAvatarImg}
-                />
+                {profileImage ? (
+                  <img
+                    src={profileImage}
+                    alt="profile"
+                    className={styles.sidebarAvatarImg}
+                  />
+                ) : (
+                  <span
+                    className={styles.sidebarAvatarImg}
+                    aria-hidden="true"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "var(--color-light)",
+                      color: "var(--color-primary)",
+                    }}
+                  >
+                    <UserRound size={36} />
+                  </span>
+                )}
                 <span className={styles.sidebarAvatarBadge}>
                   <CheckCircle2 size={18} />
                 </span>
