@@ -1,5 +1,7 @@
 import { useNavigate, useOutletContext } from "react-router-dom";
 import {
+  BriefcaseBusiness,
+  PlusCircle,
   ArrowRight,
   Briefcase,
   Building2,
@@ -62,6 +64,18 @@ const AdminDashboard = () => {
       text: "Schools that have submitted jobs.",
       icon: Building2,
       path: "/admin/schools",
+    },
+    {
+      label: "Post a New Job",
+      text: "Post a job for one of the schools.",
+      icon: PlusCircle,
+      path: "/admin/post-job",
+    },
+    {
+      label: "Manage Jobs",
+      text: "Jobs you posted for schools.",
+      icon: BriefcaseBusiness,
+      path: "/admin/manage-jobs",
     },
   ];
 

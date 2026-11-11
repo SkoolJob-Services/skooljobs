@@ -4,7 +4,7 @@
 :root {
   --auth-text: var(--md-sys-color-on-surface, #1b1c1f);
   --auth-muted: var(--md-sys-color-on-surface-variant, #5b5f66);
-  --auth-primary: #03274c;
+  --auth-primary: var(--color-primary);
   --auth-error: var(--md-sys-color-error, #b3261e);
   --auth-error-bg: var(--md-sys-color-error-container, #fde7e6);
   --auth-success-bg: #e3f2e8;
@@ -166,4 +166,33 @@
 .invite-facts dd {
   margin: 0;
   font-weight: 600;
+}
+
+/* Login: choose how the one-time code is sent (Email / WhatsApp / SMS) — from cattlemgmtapp */
+.segmented {
+  display: flex;
+  padding: 4px;
+  gap: 4px;
+  border-radius: 999px;
+  background: var(--color-light);
+}
+.segmented__option {
+  flex: 1;
+  border: 0;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: none;
+  color: var(--auth-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.segmented__option.is-selected {
+  background: #fff;
+  color: var(--auth-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.segmented__option:disabled {
+  cursor: default;
+  opacity: 0.6;
 }

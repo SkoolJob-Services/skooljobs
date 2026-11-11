@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Calendar, Clock, MapPin, Video, Clipboard } from "lucide-react";
+import { withoutDemoInterviews } from "../../lib/schooldata";
 import styles from "./styles/TeacherInterviews.module.css";
 
 const TeacherInterviews = () => {
@@ -9,11 +10,14 @@ const TeacherInterviews = () => {
     localStorage.getItem("skooljobs_teacher_data") || "{}",
   );
   const candidateName =
-    `${teacherProfile.firstName || currentUser.firstName || "Rahul"} ${teacherProfile.lastName || currentUser.lastName || "Sharma"}`.trim();
+    `${teacherProfile.firstName || currentUser.firstName || ""} ${teacherProfile.lastName || currentUser.lastName || ""}`.trim();
 
   const [interviews] = useState(() => {
-    const saved = localStorage.getItem("skooljobs_interviews");
-    return saved ? JSON.parse(saved) : [];
+    try {
+      return withoutDemoInterviews(JSON.parse(localStorage.getItem("skooljobs_interviews") || "[]"));
+    } catch {
+      return [];
+    }
   });
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,7 +47,7 @@ const TeacherInterviews = () => {
   const myInterviews = interviews.filter(
     (iv) =>
       String(iv.candidateId) === String(currentUser.id) ||
-      iv.candidateName?.toLowerCase() === candidateName.toLowerCase(),
+      (candidateName && iv.candidateName?.toLowerCase() === candidateName.toLowerCase()),
   );
 
   const upcomingInterviews = myInterviews.filter(

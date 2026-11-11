@@ -175,7 +175,9 @@ export const mockAuthApi: AuthApi = {
       logoUrl: "",
       signupPolicy: "OPEN",
       selfSignupTypes: ["TEACHER"],
-    };
+      // Same shape as signup-api 0.0.1-dev.2 (otpChannels per flow).
+      otpChannels: { login: ["EMAIL", "WHATSAPP", "SMS"], signup: ["EMAIL", "WHATSAPP", "SMS"], invite: ["EMAIL", "WHATSAPP", "SMS"] },
+    } as Awaited<ReturnType<AuthApi["getCurrentTenant"]>>;
   },
 
   async createSignupSession(body) {

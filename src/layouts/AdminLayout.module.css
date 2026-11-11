@@ -12,7 +12,7 @@
   --admin-hover: rgba(21, 41, 63, 0.06);
   --admin-border: var(--color-border);
   --admin-text: var(--color-primary-text);
-  --admin-text-soft: #2b2b25;
+  --admin-text-soft: var(--color-text);
   --admin-muted: #6b6b5f;
   --admin-muted-soft: #8a8a78;
   --admin-danger: #dc2626;

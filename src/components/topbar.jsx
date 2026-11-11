@@ -1,4 +1,12 @@
-import { Bell, Settings } from "lucide-react";
+import { Bell, Settings, UserRound } from "lucide-react";
+
+const AVATAR_FALLBACK = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "var(--color-light)",
+  color: "var(--color-primary)",
+};
 import styles from "./styles/topbar.module.css";
 
 const Topbar = ({
@@ -16,9 +24,12 @@ const Topbar = ({
     currentUser = {};
   }
 
-  const displayName = currentUser.name || currentUser.firstName || "Gopal";
-  const profilePhoto =
-    currentUser.profilePhoto || "https://i.pravatar.cc/300?img=12";
+  const displayName =
+    currentUser.name ||
+    [currentUser.firstName, currentUser.lastName].filter(Boolean).join(" ") ||
+    currentUser.email?.split("@")[0] ||
+    "Teacher";
+  const profilePhoto = currentUser.profilePhoto || "";
 
   return (
     <div className={styles.topbar}>
@@ -55,11 +66,13 @@ const Topbar = ({
           >
             <Settings size={18} />
           </button>
-          <img
-            src={profilePhoto}
-            alt="profile"
-            className={styles.profilePhoto}
-          />
+          {profilePhoto ? (
+            <img src={profilePhoto} alt="profile" className={styles.profilePhoto} />
+          ) : (
+            <span className={styles.profilePhoto} aria-hidden="true" style={AVATAR_FALLBACK}>
+              <UserRound size={18} />
+            </span>
+          )}
         </div>
       </div>
     </div>

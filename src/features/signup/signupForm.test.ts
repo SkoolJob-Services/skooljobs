@@ -42,10 +42,9 @@ describe("validateSignup", () => {
     expect(errors.form).toMatch(/at least/i);
   });
 
-  it("verifies an entered email even when its box is not ticked", () => {
+  it("needs at least one verification channel", () => {
     const errors = validateSignup({ ...base, verifyEmail: false }, { requireSignupType: false });
-    expect(errors.form).toBeUndefined();
-    expect(requestedChannels({ ...base, verifyEmail: false })).toEqual(["email"]);
+    expect(errors.form).toMatch(/verification code/i);
   });
 
   it("flags an invalid email and phone", () => {
@@ -67,16 +66,6 @@ describe("requestedChannels", () => {
 
   it("uses the phone number for WhatsApp when 'same as phone' is ticked", () => {
     const values = { ...base, phoneNumber: "9876543210", verifyPhone: true, verifyWhatsapp: true };
-    expect(requestedChannels(values)).toEqual(["email", "phone", "whatsapp"]);
-  });
-
-  it("requires every identifier entered, even if only email was ticked", () => {
-    const values = { ...base, phoneNumber: "9876543210", whatsappSameAsPhone: false };
-    expect(requestedChannels(values)).toEqual(["email", "phone"]);
-  });
-
-  it("requires phone and WhatsApp when the WhatsApp number differs", () => {
-    const values = { ...base, phoneNumber: "9876543210", whatsappSameAsPhone: false, whatsappNumber: "9999999999" };
     expect(requestedChannels(values)).toEqual(["email", "phone", "whatsapp"]);
   });
 });
@@ -102,5 +91,23 @@ describe("toSignupSessionRequest", () => {
     expect(request.phone).toBeUndefined();
     expect(request.whatUpNo).toBeUndefined();
     expect(request.signupType).toBeUndefined();
+  });
+});
+
+describe("organisation channels", () => {
+  it("sends only the channels switched on, and the email in lowercase", () => {
+    const v = { ...base, email: " Reena0Sanjay@Gmail.com ", verifyEmail: true, verifyPhone: true, phoneNumber: "9811238048" };
+    expect(requestedChannels(v, ["EMAIL", "WHATSAPP"])).toEqual(["email"]);
+    const request = toSignupSessionRequest(v, undefined, ["EMAIL", "WHATSAPP"]);
+    expect(request.email).toBe("reena0sanjay@gmail.com");
+    expect(request.isPhoneOtpRequested).toBe(false);
+    expect(request.isEmailOtpRequested).toBe(true);
+  });
+
+  it("asks for another channel when only switched-off ones are ticked", () => {
+    const v = { ...base, verifyEmail: false, verifyPhone: true, phoneNumber: "9811238048" };
+    expect(validateSignup(v, { requireSignupType: false, enabledChannels: ["EMAIL", "WHATSAPP"] }).form).toBe(
+      "Choose at least one way to receive your verification code.",
+    );
   });
 });

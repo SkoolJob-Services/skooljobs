@@ -17,9 +17,17 @@ import {
   Bookmark,
   X,
 } from "lucide-react";
-import { jobsData, resumesData } from "../lib/teacherdata";
+import { resumesData } from "../lib/teacherdata";
 import { computeJobMatch, loadTeacherMatchProfile } from "../lib/jobMatch";
 import { applyToJob } from "../services/applicationService";
+import {
+  applicantSnapshot,
+  experienceYears,
+  profileCompletion,
+  toMatchProfile,
+  useOwnTeacherProfile,
+} from "../features/teacher/ownTeacherProfile";
+import { usePublicJobs } from "../site/hooks/usePublicJobs";
 import {
   updateTeacherProfile,
 } from "../services/teacherprofileService";
@@ -79,7 +87,16 @@ const TeacherLayout = () => {
     navigate(`/teacher/profile?section=${sectionId}`);
   };
 
-  const [profileImage, setProfileImage] = useState("https://i.pravatar.cc/300?img=12");
+  // The teacher's own profile (GET /teachers/me) and the live job list (GET /jobs).
+  const {
+    profile: teacherProfile,
+    status: profileStatus,
+    refresh: refreshTeacherProfile,
+  } = useOwnTeacherProfile();
+  const { jobs: liveJobs, loading: jobsLoading } = usePublicJobs();
+  const completion = profileCompletion(teacherProfile);
+
+  const [profileImage, setProfileImage] = useState(null);
   const [appliedJobs, setAppliedJobs] = useState(() => {
     const saved = localStorage.getItem("skooljobs_applied_jobs");
     return saved ? JSON.parse(saved) : [];
@@ -90,58 +107,39 @@ const TeacherLayout = () => {
   });
   const [activities, setActivities] = useState(() => {
     const saved = localStorage.getItem("skooljobs_teacher_activities");
-    return saved ? JSON.parse(saved) : [
-      {
-        message: "Profile viewed by Green Valley School",
-        date: new Date(Date.now() - 3600000).toISOString(),
-        type: "view",
-      },
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
+  // Live, approved jobs from the Job Posting service, scored against the teacher's profile.
   const allJobs = useMemo(() => {
-    const matchProfile = loadTeacherMatchProfile();
-    const savedRecruiterJobsStr = localStorage.getItem("skooljobs_jobs");
-    const recruiterJobs = savedRecruiterJobsStr ? JSON.parse(savedRecruiterJobsStr) : [];
-    const normalizedRecruiter = recruiterJobs
-      .filter((j) => j.status === "Active" || j.status === "Scheduled")
-      .map((j) => {
-        const job = {
-          id: j.id,
-          role: j.title || "Teaching Position",
-          school: j.schoolName || j.companyName || "Green Valley School",
-          location: j.location || "Bhopal, MP",
-          type: j.employmentType || "Full Time",
-          salary: j.salaryRange || "Competitive",
-          skill: j.subject || "Teaching",
-          description: j.description,
-          requirements: j.requirements,
-          qualifications: j.qualifications,
-          expiryDate: j.expiryDate,
-          vacancies: j.vacancies,
-          roleType: j.roleType,
-        };
-        return { ...job, match: computeJobMatch(job, matchProfile) };
-      });
-    const matchedStaticJobs = jobsData.map((job) => ({
-      ...job,
-      match: computeJobMatch(job, matchProfile),
-    }));
-    return [...normalizedRecruiter, ...matchedStaticJobs];
-  }, []);
+    const matchProfile = toMatchProfile(teacherProfile) || loadTeacherMatchProfile();
+    return liveJobs.map((j) => {
+      const job = {
+        id: j.id,
+        role: j.title || "Teaching Position",
+        school: j.school || "",
+        location: j.location || "",
+        type: j.employmentType || "",
+        salary: j.salary || "",
+        skill: j.subject || "",
+        description: j.description,
+        qualifications: j.qualifications.join(", "),
+        roleType: j.roleCategory,
+        postedDate: j.postedDate,
+      };
+      return { ...job, match: computeJobMatch(job, matchProfile) };
+    });
+  }, [liveJobs, teacherProfile]);
 
   const [resumes, setResumes] = useState(() => {
-    const saved = localStorage.getItem("skooljobs_resumes");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return resumesData;
-      }
+    try {
+      const saved = JSON.parse(localStorage.getItem("skooljobs_resumes") || "[]");
+      // Earlier versions stored the demo resumes here for every teacher: drop them.
+      const demoNames = new Set(resumesData.map((r) => r.name));
+      return Array.isArray(saved) ? saved.filter((r) => !demoNames.has(r.name)) : [];
+    } catch {
+      return [];
     }
-    // Set default in localStorage
-    localStorage.setItem("skooljobs_resumes", JSON.stringify(resumesData));
-    return resumesData;
   });
 
   const [selectedResume, setSelectedResume] = useState(() => resumes[0] || null);
@@ -202,16 +200,36 @@ const TeacherLayout = () => {
   }, [location.pathname]);
 
   const recommendedJobs = useMemo(() => {
-    if (!selectedResume) return allJobs;
-    const skillFocus = selectedResume.skill || selectedResume.skills?.split(",")[0]?.trim() || "Teaching";
-    return allJobs.filter((job) => job.skill.toLowerCase() === skillFocus.toLowerCase());
-  }, [selectedResume, allJobs]);
+    const byMatch = [...allJobs].sort((a, b) => b.match - a.match);
+    const focus = (
+      selectedResume?.skill ||
+      selectedResume?.skills?.split(",")[0]?.trim() ||
+      teacherProfile?.mainSubject ||
+      ""
+    ).toLowerCase();
+    if (!focus) return byMatch;
+    const focused = byMatch.filter((job) => job.skill.toLowerCase() === focus);
+    return focused.length ? focused : byMatch;
+  }, [selectedResume, allJobs, teacherProfile]);
 
   if (!localStorage.getItem("currentUser")) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
-  const displayName = currentUser.name || currentUser.firstName || "Gopal";
+  const displayName =
+    teacherProfile?.fullName ||
+    currentUser.name ||
+    [currentUser.firstName, currentUser.lastName].filter(Boolean).join(" ") ||
+    currentUser.email?.split("@")[0] ||
+    "Teacher";
+  const avatarUrl = profileImage || teacherProfile?.photoUrl || null;
+  const initials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0].toUpperCase())
+      .join("") || "T";
 
   const addActivity = (message, type = "action") => {
     setActivities((prev) => [{ message, date: new Date().toISOString(), type }, ...prev]);
@@ -235,21 +253,29 @@ const TeacherLayout = () => {
         const savedApplicantsStr = localStorage.getItem("skooljobs_applicants");
         const currentApplicants = savedApplicantsStr ? JSON.parse(savedApplicantsStr) : [];
         
-        const teacherProfile = JSON.parse(localStorage.getItem("skooljobs_teacher_data") || "{}");
+        const localProfile = JSON.parse(localStorage.getItem("skooljobs_teacher_data") || "{}");
         const teacherQualifications = JSON.parse(localStorage.getItem("skooljobs_teacher_qualifications") || "[]");
-        const highestQual = teacherQualifications[0]?.degree || teacherProfile.highestQualificationOne || "B.Ed";
+        const highestQual =
+          teacherQualifications[0]?.degree ||
+          localProfile.highestQualificationOne ||
+          teacherProfile?.highestQualification1 ||
+          "";
 
+        const snapshot = applicantSnapshot(teacherProfile, { displayName, currentUser });
         const newApplicant = {
           id: Date.now(),
-          name: `${teacherProfile.firstName || currentUser.firstName || "Rahul"} ${teacherProfile.lastName || currentUser.lastName || "Sharma"}`.trim(),
-          subject: job.skill || "Mathematics",
-          experience: teacherProfile.age ? `${Math.max(1, parseInt(teacherProfile.age) - 22)} yrs` : "3 yrs",
+          name: `${localProfile.firstName || teacherProfile?.firstName || ""} ${localProfile.lastName || teacherProfile?.lastName || ""}`.trim() || displayName,
+          subject: job.skill || teacherProfile?.mainSubject || "",
+          experience: experienceYears(snapshot.experiences),
           status: "Applied",
-          avatar: teacherProfile.profilePhoto || profileImage || "https://i.pravatar.cc/100?img=12",
+          avatar: localProfile.profilePhoto || avatarUrl || "",
           jobTitle: job.role,
-          qualification: highestQual,
+          qualification: snapshot.highestDegree || highestQual,
+          jobId: job.id,
           saved: false,
-          candidateId: currentUser.id || 1,
+          candidateId: currentUser.id,
+          // The applicant's real details for the school (no API lets a school read a profile yet).
+          profile: snapshot,
         };
 
         localStorage.setItem("skooljobs_applicants", JSON.stringify([newApplicant, ...currentApplicants]));
@@ -260,13 +286,9 @@ const TeacherLayout = () => {
   };
 
   // Backend-sync for the savedJobs section. The TeacherEntity.savedJobs
-  // contract field is UUID-typed (job_id), but the current All Jobs list
-  // is still 100% mock/local data (jobsData + recruiter-posted jobs from
-  // localStorage, neither using real UUIDs) - that's a separate, larger
-  // wiring task (connecting this Teacher UI to the real Job Service),
-  // not done here. Non-UUID ids are skipped rather than sent and rejected,
-  // so this is correctly wired for when real job ids start flowing
-  // through, but will persist nothing server-side today for mock jobs.
+  // contract field is UUID-typed (job_id); the job list now comes from the
+  // Job Posting service (real UUIDs). Non-UUID ids (jobs saved before, from
+  // the old demo list) are skipped rather than sent and rejected.
   const submitSavedJobs = async (jobs) => {
     if (!currentUser.id) return;
     const validJobs = jobs.filter((j) => UUID_PATTERN.test(String(j.id)));
@@ -333,6 +355,12 @@ const TeacherLayout = () => {
     currentUser,
     displayName,
     handleLogout,
+    // From GET /teachers/me (null while loading or when it has no profile yet)
+    teacherProfile,
+    profileStatus,
+    profileCompletion: completion,
+    refreshTeacherProfile,
+    jobsLoading,
   };
 
   return (
@@ -341,11 +369,13 @@ const TeacherLayout = () => {
         <aside className={styles.sidebar}>
           <div className={styles.profileCard}>
             <div className={styles.profileRow}>
-              <img
-                src={profileImage}
-                alt="profile"
-                className={styles.profileAvatar}
-              />
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="profile" className={styles.profileAvatar} />
+              ) : (
+                <span className={`${styles.profileAvatar} ${styles.profileInitials}`} aria-hidden="true">
+                  {initials}
+                </span>
+              )}
               <div>
                 <h1 className={styles.profileName}>{displayName}</h1>
                 <p className={styles.profileSubtitle}>Teacher Account</p>
@@ -357,7 +387,7 @@ const TeacherLayout = () => {
             <div className={styles.scoreHeader}>
               <span>Profile Score</span>
               <div className={styles.scoreActions}>
-                <span>86%</span>
+                <span>{completion}%</span>
                 <button
                   type="button"
                   onClick={() => navigate("/teacher/profile")}
@@ -368,7 +398,7 @@ const TeacherLayout = () => {
               </div>
             </div>
             <div className={styles.scoreTrack}>
-              <div className={styles.scoreFill} style={{ width: "86%" }} />
+              <div className={styles.scoreFill} style={{ width: `${completion}%` }} />
             </div>
           </div>
 

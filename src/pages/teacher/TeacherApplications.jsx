@@ -67,10 +67,10 @@ const TeacherApplications = () => {
           const currentApplicants = JSON.parse(savedApplicantsStr);
           const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
           const teacherProfile = JSON.parse(localStorage.getItem("skooljobs_teacher_data") || "{}");
-          const candidateName = `${teacherProfile.firstName || currentUser.firstName || "Rahul"} ${teacherProfile.lastName || currentUser.lastName || "Sharma"}`.trim();
+          const candidateName = `${teacherProfile.firstName || currentUser.firstName || ""} ${teacherProfile.lastName || currentUser.lastName || ""}`.trim();
 
           const updatedApplicants = currentApplicants.filter(
-            (a) => !(a.jobTitle === jobRole && (String(a.candidateId) === String(currentUser.id) || a.name.toLowerCase() === candidateName.toLowerCase()))
+            (a) => !(a.jobTitle === jobRole && (String(a.candidateId) === String(currentUser.id) || (candidateName && a.name?.toLowerCase() === candidateName.toLowerCase())))
           );
           localStorage.setItem("skooljobs_applicants", JSON.stringify(updatedApplicants));
         }

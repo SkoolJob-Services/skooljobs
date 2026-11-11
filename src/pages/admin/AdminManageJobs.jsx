@@ -19,7 +19,7 @@ const jobStatusChip = {
   Rejected: styles.statusRejected,
 };
 
-const HeadAdminJobs = () => {
+const AdminManageJobs = () => {
   const navigate = useNavigate();
   const { myJobs, setJobs, managedSchools } = useOutletContext();
 
@@ -46,7 +46,7 @@ const HeadAdminJobs = () => {
         <h2 className={styles.title}>Manage Jobs</h2>
         <Button
           variant="filled"
-          onClick={() => navigate("/head-admin/post-job")}
+          onClick={() => navigate("/admin/post-job")}
           className={styles.postJobButton}
           startIcon={<PlusCircle size={16} />}
         >
@@ -144,4 +144,4 @@ const HeadAdminJobs = () => {
   );
 };
 
-export default HeadAdminJobs;
+export default AdminManageJobs;

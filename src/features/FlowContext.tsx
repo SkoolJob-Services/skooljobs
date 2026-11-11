@@ -1,3 +1,4 @@
+import type { Channel } from "./tenant/otpChannels";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import type { InviteDetailsResponse, SignupSessionRequest } from "../api";
 import type { OtpChannel, SignupFormValues } from "./signup/signupForm";
@@ -17,6 +18,8 @@ export interface PendingSignup {
 export interface PendingLogin {
   identifier: string;
   sessionId: string;
+  /** How the code was sent (resend uses the same). */
+  channel?: Channel;
   /** Where to go after login. */
   returnTo?: string;
 }

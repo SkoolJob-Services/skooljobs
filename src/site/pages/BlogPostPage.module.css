@@ -1,0 +1,150 @@
+.page {
+  background: #fff;
+}
+
+.header {
+  padding: 50px 20px 60px;
+  background: var(--gradient-hero);
+}
+.headerInner {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 24px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+.back:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+.category {
+  display: block;
+  margin-bottom: 14px;
+  color: var(--color-cream);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.header h1 {
+  margin-bottom: 18px;
+  color: #fff;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-cream-light);
+  font-size: 14px;
+}
+
+.layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 50px 20px 80px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 50px;
+}
+
+.hero {
+  width: 100%;
+  max-height: 460px;
+  object-fit: cover;
+  border-radius: 20px;
+  margin-bottom: 30px;
+}
+
+.markdown {
+  color: var(--color-text);
+  font-size: 17px;
+  line-height: 1.85;
+}
+.markdown p {
+  margin-bottom: 18px;
+}
+.markdown h3 {
+  margin: 34px 0 14px;
+  color: var(--color-primary);
+  font-size: 26px;
+  font-weight: 800;
+}
+.markdown h4 {
+  margin: 24px 0 10px;
+  color: var(--color-primary-text);
+  font-size: 20px;
+  font-weight: 700;
+}
+.markdown ul {
+  margin: 0 0 20px;
+  padding-left: 4px;
+}
+.markdown li {
+  position: relative;
+  margin-bottom: 8px;
+  padding-left: 24px;
+}
+.markdown li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.aside h2 {
+  margin-bottom: 18px;
+  color: var(--color-primary-text);
+  font-size: 20px;
+  font-weight: 800;
+}
+.related {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(21, 41, 63, 0.1);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.related:hover {
+  background: var(--color-light);
+  border-color: var(--color-secondary);
+}
+.related img {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.related span {
+  color: var(--color-primary-text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .header h1 {
+    font-size: 32px;
+  }
+}
+
+.content {
+  min-width: 0;
+}

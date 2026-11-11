@@ -19,14 +19,11 @@ import {
   X,
 } from "lucide-react";
 import Topbar from "../components/topbar";
-import { initialJobs, initialApplicants } from "../lib/schooldata";
+import { withoutDemoApplicants, withoutDemoInterviews, withoutDemoJobs } from "../lib/schooldata";
 import { useImageUpload } from "../lib/useImageUpload";
 import { listJobs } from "../services/jobService";
 import styles from "./SchoolLayout.module.css";
 
-const augmentedJobs = [...initialJobs]
-  .sort((a, b) => new Date(b.date) - new Date(a.date))
-  .map((j) => ({ ...j, roleType: "Teaching", vacancies: 2, expiryDate: "30 Jun 2025" }));
 
 // Real JobResponse (job service) -> the shape SchoolManageJobs/SchoolJobDetail
 // already render. Status-transition fields (Active/Paused/Closed/Draft as a
@@ -66,12 +63,6 @@ const mapJobResponse = (job) => ({
   expiryDate: job.expiryDate,
 });
 
-const augmentedApplicants = initialApplicants.map((a, i) => ({
-  ...a,
-  jobTitle: ["Math Teacher", "English Teacher", "Science Teacher", "Hindi Teacher", "Math Teacher"][i],
-  qualification: ["B.Ed + M.Sc", "B.Ed + MA English", "B.Ed + B.Sc", "MA Hindi + B.Ed", "M.Sc + B.Ed"][i],
-  saved: false,
-}));
 
 const sidebarItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/school/dashboard" },
@@ -100,11 +91,11 @@ const SchoolLayout = () => {
   }
 
   const [jobs, setJobs] = useState(() => {
-    const saved = localStorage.getItem("skooljobs_jobs");
-    if (saved) {
-      try { return JSON.parse(saved); } catch { return augmentedJobs; }
+    try {
+      return withoutDemoJobs(JSON.parse(localStorage.getItem("skooljobs_jobs") || "[]"));
+    } catch {
+      return [];
     }
-    return augmentedJobs;
   });
   const [jobsLoading, setJobsLoading] = useState(
     () => !!localStorage.getItem("schoolProfileId"),
@@ -140,16 +131,12 @@ const SchoolLayout = () => {
     };
   }, []);
   const [applicants, setApplicants] = useState(() => {
-    const saved = localStorage.getItem("skooljobs_applicants");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return parsed.map((a) => a.status === "Applied" ? { ...a, status: "Not Reviewed" } : a);
-      } catch {
-        return augmentedApplicants;
-      }
+    try {
+      const parsed = withoutDemoApplicants(JSON.parse(localStorage.getItem("skooljobs_applicants") || "[]"));
+      return parsed.map((a) => a.status === "Applied" ? { ...a, status: "Not Reviewed" } : a);
+    } catch {
+      return [];
     }
-    return augmentedApplicants;
   });
 
   useEffect(() => {
@@ -167,101 +154,14 @@ const SchoolLayout = () => {
     validateAndProcess: validateLogoImage,
   } = useImageUpload("logo");
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, msg: "New application from Rahul Sharma for Math Teacher", time: "2h ago", read: false },
-    { id: 2, msg: "Priya Singh accepted your interview invitation", time: "5h ago", read: false },
-    { id: 3, msg: "English Teacher job post is now live", time: "1d ago", read: true },
-    { id: 4, msg: "Profile viewed by 3 candidates today", time: "2d ago", read: true },
-  ]);
+  // Real notifications arrive as toasts from the notification socket.
+  const [notifications, setNotifications] = useState([]);
   const [interviews, setInterviews] = useState(() => {
-    const saved = localStorage.getItem("skooljobs_interviews");
-    if (saved) {
-      try { return JSON.parse(saved); } catch { /* fall through to defaults below */ }
+    try {
+      return withoutDemoInterviews(JSON.parse(localStorage.getItem("skooljobs_interviews") || "[]"));
+    } catch {
+      return [];
     }
-    const initial = [
-      {
-        id: 1,
-        candidateId: 1,
-        candidateName: "Rahul Sharma",
-        jobTitle: "Math Teacher",
-        school: "Sunrise Public School",
-        date: "2026-06-06",
-        time: "10:00",
-        duration: "60 Minutes",
-        mode: "Online",
-        onlinePlatform: "Zoom",
-        meetingLink: "https://zoom.us/j/1234567890",
-        round: "1st Round",
-        notesForCandidate: "Interview will cover algebra, calculus curriculum design, and mock classroom demo. Please join the link 5 mins early.",
-        status: "Scheduled",
-      },
-      {
-        id: 2,
-        candidateId: 1,
-        candidateName: "Rahul Sharma",
-        jobTitle: "Science Teacher",
-        school: "Green Valley School",
-        date: "2026-06-12",
-        time: "14:00",
-        duration: "60 Minutes",
-        mode: "In-Person",
-        round: "Final Round",
-        notesForCandidate: "Management round. Please carry printed copies of your B.Ed certificates, resume, and experience letters to the school front desk.",
-        location: "Sector 12, Kolar Road, Bhopal",
-        status: "Scheduled",
-      },
-      {
-        id: 3,
-        candidateId: 1,
-        candidateName: "Rahul Sharma",
-        jobTitle: "English Teacher",
-        school: "EduHire Recruiters",
-        date: "2026-05-28",
-        time: "11:30",
-        duration: "45 Minutes",
-        mode: "Online",
-        onlinePlatform: "Google Meet",
-        meetingLink: "https://meet.google.com/abc-defg-hjk",
-        round: "HR Round",
-        notesForCandidate: "Basic communication and background screening.",
-        status: "Completed",
-      },
-      {
-        id: 101,
-        candidateId: 999,
-        candidateName: "Priya Singh",
-        jobTitle: "English Teacher",
-        school: "Green Valley School",
-        date: "2026-06-02",
-        time: "10:00",
-        duration: "45 Minutes",
-        mode: "Online",
-        onlinePlatform: "Google Meet",
-        meetingLink: "https://meet.google.com/abc-defg-hjk",
-        round: "1st Round",
-        interviewer: "",
-        notesForCandidate: "",
-        status: "Confirmed",
-      },
-      {
-        id: 102,
-        candidateId: 998,
-        candidateName: "Suresh Verma",
-        jobTitle: "Math Teacher",
-        school: "Green Valley School",
-        date: "2026-06-03",
-        time: "14:00",
-        duration: "45 Minutes",
-        mode: "In-Person",
-        location: "Sector 12, Kolar Road, Bhopal",
-        round: "1st Round",
-        interviewer: "",
-        notesForCandidate: "",
-        status: "Pending",
-      },
-    ];
-    localStorage.setItem("skooljobs_interviews", JSON.stringify(initial));
-    return initial;
   });
 
   useEffect(() => {
@@ -273,7 +173,7 @@ const SchoolLayout = () => {
   }, []);
 
   if (!localStorage.getItem("currentUser")) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   const schoolName = currentUser.companyName || currentUser.schoolName || currentUser.firstName || "Som Lalit School";

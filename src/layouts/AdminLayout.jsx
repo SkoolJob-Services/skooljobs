@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 import {
+  BriefcaseBusiness,
   ClipboardCheck,
   LayoutDashboard,
   LogOut,
   Menu,
+  PlusCircle,
   UserPlus,
   X,
 } from "lucide-react";
@@ -15,6 +17,8 @@ const sidebarItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/admin/dashboard" },
   { label: "Invite Schools", icon: UserPlus, path: "/admin/invite-schools" },
   { label: "Job Approvals", icon: ClipboardCheck, path: "/admin/job-approvals" },
+  { label: "Post a New Job", icon: PlusCircle, path: "/admin/post-job" },
+  { label: "Manage Jobs", icon: BriefcaseBusiness, path: "/admin/manage-jobs" },
 ];
 
 // Header titles for every admin route, including the ones not in the sidebar.
@@ -24,6 +28,8 @@ const pageTitles = {
   "/admin/job-approvals": "Job Approvals",
   "/admin/jobs": "All Jobs",
   "/admin/schools": "Schools",
+  "/admin/post-job": "Post a New Job",
+  "/admin/manage-jobs": "Manage Jobs",
 };
 
 const isActivePath = (pathname, path) =>
@@ -81,7 +87,7 @@ const AdminLayout = () => {
   }, []);
 
   if (!localStorage.getItem("currentUser") || currentUser.role !== "admin") {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
@@ -102,7 +108,17 @@ const AdminLayout = () => {
       isActivePath(location.pathname, path),
     )?.[1] || "Platform Admin";
 
-  const outletCtx = { jobs, setJobs, currentUser };
+  // Jobs this admin posted for schools (Manage Jobs), and the schools they can post for:
+  // the account's own list plus every school that already has a job.
+  const myJobs = jobs.filter((j) => j.schoolEmail === currentUser.email);
+  const managedSchools = Array.from(
+    new Set([
+      ...(currentUser.managedSchools || []),
+      ...jobs.map((j) => j.schoolName).filter(Boolean),
+    ]),
+  );
+
+  const outletCtx = { jobs, setJobs, myJobs, currentUser, managedSchools };
 
   const navList = (
     <nav className={styles.nav} aria-label="Platform admin">

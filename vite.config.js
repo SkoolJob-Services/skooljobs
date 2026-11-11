@@ -17,22 +17,32 @@ const apiProxy = (target, prefix) => ({
 });
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "DEV_");
-  const proxy = {
-    "/api/school-profile": apiProxy(env.DEV_SCHOOL_PROFILE_API_TARGET || "http://localhost:8081", /^\/api\/school-profile/),
-    "/api/job": apiProxy(env.DEV_JOB_API_TARGET || "http://localhost:8085", /^\/api\/job/),
-    "/api/teacher-profile": apiProxy(env.DEV_TEACHER_PROFILE_API_TARGET || "http://localhost:8086", /^\/api\/teacher-profile/),
-    "/ws/notifications": {
-      target: env.DEV_NOTIFICATION_WS_TARGET || "ws://localhost:8080",
-      ws: true,
-      changeOrigin: true,
-    },
-  };
-  if (env.DEV_APPLICATION_API_TARGET) {
+  const env = loadEnv(mode, process.cwd(), ["DEV_", "VITE_"]);
+  // Same as cattlemgmtapp: with VITE_API_PROXY_TARGET set (e.g. https://dev.app.skooljobs.com),
+  // every /api/<service>/… call and the notifications socket go to the same path on that host,
+  // so local work runs against the remote dev services with no CORS. Without it, the per-service
+  // local targets below are used.
+  const remote = env.VITE_API_PROXY_TARGET?.replace(/\/+$/, "");
+  const proxy = remote
+    ? {
+        "/api": { target: remote, changeOrigin: true, secure: true },
+        "/ws/notifications": { target: remote.replace(/^http/, "ws"), ws: true, changeOrigin: true, secure: true },
+      }
+    : {
+        "/api/school-profile": apiProxy(env.DEV_SCHOOL_PROFILE_API_TARGET || "http://localhost:8081", /^\/api\/school-profile/),
+        "/api/job": apiProxy(env.DEV_JOB_API_TARGET || "http://localhost:8085", /^\/api\/job/),
+        "/api/teacher-profile": apiProxy(env.DEV_TEACHER_PROFILE_API_TARGET || "http://localhost:8086", /^\/api\/teacher-profile/),
+        "/ws/notifications": {
+          target: env.DEV_NOTIFICATION_WS_TARGET || "ws://localhost:8080",
+          ws: true,
+          changeOrigin: true,
+        },
+      };
+  if (!remote && env.DEV_APPLICATION_API_TARGET) {
     proxy["/api/application"] = apiProxy(env.DEV_APPLICATION_API_TARGET, /^\/api\/application/);
   }
   // Signup service (login, signup, invites). Without it, use `npm run dev:mock`.
-  if (env.DEV_SIGNUP_API_TARGET) {
+  if (!remote && env.DEV_SIGNUP_API_TARGET) {
     proxy["/api/signup"] = apiProxy(env.DEV_SIGNUP_API_TARGET, /^\/api\/signup/);
   }
 

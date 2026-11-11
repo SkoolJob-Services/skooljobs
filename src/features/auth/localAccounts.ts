@@ -3,10 +3,8 @@ import { CURRENT_USER_KEY } from "./legacyUser";
 import type { AppRole } from "./roles";
 
 /**
- * Temporary local logins for accounts the backend can't log in yet (Head Admin's
- * HEAD_ADMIN role isn't in the backend mapping; the platform admin and the demo
- * school HR (hr@school.in) have no
- * backend account). Logging in with one of these emails skips the OTP call and
+ * Temporary local logins for accounts the backend can't log in yet (the platform
+ * admin and the demo school HR (hr@school.in) have no backend account). Logging in with one of these emails skips the OTP call and
  * builds the session in the browser; their pages already work from
  * localStorage. Remove once the backend issues these tokens.
  */
@@ -16,23 +14,6 @@ interface LocalAccount {
 }
 
 const LOCAL_ACCOUNTS: Record<string, LocalAccount> = {
-  "headadmin@skooljobs.com": {
-    role: "HEAD_ADMIN",
-    profile: {
-      name: "EduHire Group Admin",
-      companyName: "EduHire Recruiters Group",
-      city: "Delhi",
-      phone: "9876005678",
-      profilePhoto: "https://i.pravatar.cc/300?img=54",
-      managedSchools: [
-        "School 1 — Bhopal Central",
-        "School 2 — Bhopal East",
-        "School 3 — Indore",
-        "School 4 — Indore South",
-        "School 5 — Ujjain",
-      ],
-    },
-  },
   "hr@school.in": {
     role: "SCHOOL_ADMIN",
     profile: {
@@ -49,6 +30,14 @@ const LOCAL_ACCOUNTS: Record<string, LocalAccount> = {
     profile: {
       name: "SkoolJobs Admin",
       profilePhoto: "https://i.pravatar.cc/300?img=68",
+      // Schools the admin can post jobs for (Post a New Job)
+      managedSchools: [
+        "School 1 — Bhopal Central",
+        "School 2 — Bhopal East",
+        "School 3 — Indore",
+        "School 4 — Indore South",
+        "School 5 — Ujjain",
+      ],
     },
   },
 };

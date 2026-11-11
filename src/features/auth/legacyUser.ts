@@ -1,5 +1,6 @@
 import { decodeJwtClaims, nameFromToken, subjectFromToken, type AppRole } from "./roles";
 import type { AuthSession } from "./types";
+import { switchStorageOwner } from "./userStorage";
 
 /**
  * Bridge to the existing SkoolJobs pages, which read the logged-in user from
@@ -13,7 +14,6 @@ export const CURRENT_USER_KEY = "currentUser";
 /** Role names the existing pages check (user.role). */
 const LEGACY_ROLE: Record<AppRole, string> = {
   ADMIN: "admin",
-  HEAD_ADMIN: "headAdmin",
   SCHOOL_ADMIN: "employer",
   SCHOOL_MEMBER: "employer",
   TEACHER: "candidate",
@@ -55,6 +55,8 @@ export function toLegacyUser(session: AuthSession, role: AppRole, roleCodes: str
 }
 
 export function writeLegacyUser(user: LegacyUser): void {
+  // A different user on this browser gets their own saved data, never the previous user's.
+  switchStorageOwner(user.id);
   try {
     // Keep fields the pages added themselves (profile photo, school name...) for the same user.
     const previous = JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || "null") as Record<string, unknown> | null;

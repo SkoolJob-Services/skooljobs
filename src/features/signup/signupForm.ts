@@ -1,5 +1,6 @@
 import type { SignupSessionRequest } from "../../api/types";
 import { isEmail, isValidLocalNumber, toE164 } from "../../lib/contact";
+import type { Channel } from "../tenant/otpChannels";
 
 export type OtpChannel = "email" | "phone" | "whatsapp";
 
@@ -26,9 +27,9 @@ export interface SignupContact {
   whatUpNo?: string;
 }
 
-/** Contact values as the API expects them (trimmed, E.164), empty ones omitted. */
+/** Contact values as the API expects them (email trimmed and lowercase, E.164), empty ones omitted. */
 export function contactFromForm(v: SignupFormValues): SignupContact {
-  const email = v.email.trim();
+  const email = v.email.trim().toLowerCase();
   const phone = toE164(v.phoneCountryCode, v.phoneNumber);
   const whatsapp = v.whatsappSameAsPhone ? phone : toE164(v.whatsappCountryCode, v.whatsappNumber);
   return {
@@ -38,21 +39,27 @@ export function contactFromForm(v: SignupFormValues): SignupContact {
   };
 }
 
-/** Channels the user asked to verify, limited to those with a value. */
-export function requestedChannels(v: SignupFormValues): OtpChannel[] {
+/** The tenant's channel code for each signup option. */
+export const SIGNUP_CHANNEL: Record<OtpChannel, Channel> = { email: "EMAIL", phone: "SMS", whatsapp: "WHATSAPP" };
+
+/**
+ * Channels the user asked to verify, limited to those with a value and, when given, to the
+ * channels the organisation has switched on.
+ */
+export function requestedChannels(v: SignupFormValues, enabled?: Channel[]): OtpChannel[] {
   const contact = contactFromForm(v);
-  // Same rule as the server (Signup B2): every identifier supplied is verified;
-  // a WhatsApp OTP on the same number also proves the phone.
-  const whatsapp = !!contact.whatUpNo && (v.verifyWhatsapp || contact.whatUpNo !== contact.phone);
-  const phone = !!contact.phone && (v.verifyPhone || !(whatsapp && contact.whatUpNo === contact.phone));
+  const on = (c: OtpChannel) => !enabled || enabled.includes(SIGNUP_CHANNEL[c]);
   const channels: OtpChannel[] = [];
-  if (contact.email) channels.push("email");
-  if (phone) channels.push("phone");
-  if (whatsapp) channels.push("whatsapp");
+  if (v.verifyEmail && contact.email && on("email")) channels.push("email");
+  if (v.verifyPhone && contact.phone && on("phone")) channels.push("phone");
+  if (v.verifyWhatsapp && contact.whatUpNo && on("whatsapp")) channels.push("whatsapp");
   return channels;
 }
 
-export function validateSignup(v: SignupFormValues, options: { requireSignupType: boolean }): SignupFieldErrors {
+export function validateSignup(
+  v: SignupFormValues,
+  options: { requireSignupType: boolean; enabledChannels?: Channel[] },
+): SignupFieldErrors {
   const errors: SignupFieldErrors = {};
   const firstName = v.firstName.trim();
   const lastName = v.lastName.trim();
@@ -75,14 +82,18 @@ export function validateSignup(v: SignupFormValues, options: { requireSignupType
   const contact = contactFromForm(v);
   if (!contact.email && !contact.phone && !contact.whatUpNo) {
     errors.form = "Enter at least an email address, phone number or WhatsApp number.";
-  } else if (!errors.email && !errors.phoneNumber && !errors.whatsappNumber && requestedChannels(v).length === 0) {
+  } else if (!errors.email && !errors.phoneNumber && !errors.whatsappNumber && requestedChannels(v, options.enabledChannels).length === 0) {
     errors.form = "Choose at least one way to receive your verification code.";
   }
   return errors;
 }
 
-export function toSignupSessionRequest(v: SignupFormValues, signupType: string | undefined): SignupSessionRequest {
-  const channels = requestedChannels(v);
+export function toSignupSessionRequest(
+  v: SignupFormValues,
+  signupType: string | undefined,
+  enabledChannels?: Channel[],
+): SignupSessionRequest {
+  const channels = requestedChannels(v, enabledChannels);
   return {
     firstName: v.firstName.trim(),
     lastName: v.lastName.trim(),

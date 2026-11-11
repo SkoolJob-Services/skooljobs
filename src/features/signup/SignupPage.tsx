@@ -36,7 +36,8 @@ const EMPTY_FORM: SignupFormValues = {
 export function SignupPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signupAllowed, signupTypes } = useTenant();
+  const { signupAllowed, signupTypes, channels } = useTenant();
+  const verifyBy = channels.signup;
   const { signupDraft, setSignupDraft, setPendingSignup } = useFlow();
 
   // signupType: fixed when the tenant offers one type or the link carries a valid ?type=,
@@ -86,12 +87,12 @@ export function SignupPage() {
     const signupType = fixedType ?? values.signupType;
     const validation = validateSignup(
       { ...values, signupType },
-      { requireSignupType: signupTypes.length > 0 },
+      { requireSignupType: signupTypes.length > 0, enabledChannels: verifyBy },
     );
     setErrors(validation);
     if (Object.values(validation).some(Boolean)) return;
 
-    const request = toSignupSessionRequest(values, signupType);
+    const request = toSignupSessionRequest(values, signupType, verifyBy);
     setSubmitting(true);
     try {
       const { sessionId } = await authApi.createSignupSession(request);
@@ -216,24 +217,30 @@ export function SignupPage() {
         <fieldset className="channel-group">
           <legend className="field-label">Send my verification code by</legend>
           <div className="channel-group__options">
-            <Checkbox
-              label="Email"
-              checked={values.verifyEmail && hasEmail}
-              onChange={(checked: boolean) => update("verifyEmail", checked)}
-              disabled={submitting || !hasEmail}
-            />
-            <Checkbox
-              label="SMS"
-              checked={values.verifyPhone && hasPhone}
-              onChange={(checked: boolean) => update("verifyPhone", checked)}
-              disabled={submitting || !hasPhone}
-            />
-            <Checkbox
-              label="WhatsApp"
-              checked={values.verifyWhatsapp && hasWhatsapp}
-              onChange={(checked: boolean) => update("verifyWhatsapp", checked)}
-              disabled={submitting || !hasWhatsapp}
-            />
+            {verifyBy.includes("EMAIL") && (
+              <Checkbox
+                label="Email"
+                checked={values.verifyEmail && hasEmail}
+                onChange={(checked: boolean) => update("verifyEmail", checked)}
+                disabled={submitting || !hasEmail}
+              />
+            )}
+            {verifyBy.includes("SMS") && (
+              <Checkbox
+                label="SMS"
+                checked={values.verifyPhone && hasPhone}
+                onChange={(checked: boolean) => update("verifyPhone", checked)}
+                disabled={submitting || !hasPhone}
+              />
+            )}
+            {verifyBy.includes("WHATSAPP") && (
+              <Checkbox
+                label="WhatsApp"
+                checked={values.verifyWhatsapp && hasWhatsapp}
+                onChange={(checked: boolean) => update("verifyWhatsapp", checked)}
+                disabled={submitting || !hasWhatsapp}
+              />
+            )}
           </div>
           <p className="field-hint">Options unlock once you enter that contact detail.</p>
         </fieldset>

@@ -346,3 +346,14 @@
 .outletWrap {
   margin-top: 1.5rem;
 }
+
+/* Avatar when the teacher has no profile photo yet */
+.profileInitials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.25rem;
+}

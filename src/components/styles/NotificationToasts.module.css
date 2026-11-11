@@ -23,7 +23,7 @@
   background-color: #ffffff;
   color: var(--color-primary-text, #15293f);
   box-shadow: var(--shadow-soft, 0 18px 45px rgba(21, 41, 63, 0.12));
-  font-family: var(--font-body, "Montserrat", sans-serif);
+  font-family: var(--font-body);
   animation: toastIn 0.2s ease-out;
 }
 

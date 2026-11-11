@@ -11,6 +11,16 @@ import { SignupDonePage } from "../features/signup/SignupDonePage";
 import { InvitePage } from "../features/invite/InvitePage";
 import { InviteVerifyPage } from "../features/invite/InviteVerifyPage";
 import PublicJobView from "../pages/PublicJobView";
+import SiteLayout from "../site/SiteLayout";
+import HomePage from "../site/pages/HomePage";
+import AboutPage from "../site/pages/AboutPage";
+import ServicesPage from "../site/pages/ServicesPage";
+import ContactPage from "../site/pages/ContactPage";
+import BlogPage from "../site/pages/BlogPage";
+import BlogPostPage from "../site/pages/BlogPostPage";
+import JobsPage from "../site/pages/JobsPage";
+import ResumeBuilderPage from "../site/pages/ResumeBuilderPage";
+import JdBuilderPage from "../site/pages/JdBuilderPage";
 
 // Heavy, rarely-used docs pages — keep them out of the main bundle.
 const ApiSpecPage = lazy(() => import("../pages/ApiSpecPage"));
@@ -24,10 +34,8 @@ import AdminJobs from "../pages/admin/AdminJobs";
 import AdminSchools from "../pages/admin/AdminSchools";
 import AdminInviteSchools from "../pages/admin/AdminInviteSchools";
 import AdminJobApprovals from "../pages/admin/AdminJobApprovals";
-import HeadAdminLayout from "../layouts/HeadAdminLayout";
-import HeadAdminDashboard from "../pages/headadmin/HeadAdminDashboard";
-import HeadAdminPostJob from "../pages/headadmin/HeadAdminPostJob";
-import HeadAdminJobs from "../pages/headadmin/HeadAdminJobs";
+import AdminPostJob from "../pages/admin/AdminPostJob";
+import AdminManageJobs from "../pages/admin/AdminManageJobs";
 import SchoolHome from "../pages/school/SchoolHome";
 import SchoolViewProfile from "../pages/school/SchoolViewProfile";
 import SchoolPostJob from "../pages/school/SchoolPostJob";
@@ -67,8 +75,21 @@ const SCHOOL_ROLES = ["SCHOOL_ADMIN", "SCHOOL_MEMBER"];
 function AppRoutes() {
   return (
     <Routes>
-      {/* "/" sends logged-in users to their area (by role from the token), others to /login */}
-      <Route path="/" element={<HomeRedirect />} />
+      {/* Public website (ported from dev.skooljobs.com) — the landing page for everyone */}
+      <Route element={<SiteLayout />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/services" element={<ServicesPage />} />
+        <Route path="/blog" element={<BlogPage />} />
+        <Route path="/blog/:slug" element={<BlogPostPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/resume-builder" element={<ResumeBuilderPage />} />
+        <Route path="/jd-builder" element={<JdBuilderPage />} />
+      </Route>
+
+      {/* "/app" sends logged-in users to their area (by role from the token), others to /login */}
+      <Route path="/app" element={<HomeRedirect />} />
 
       {/* Signup service OTP flows — same pages as cattlemgmtapp */}
       <Route element={<TenantPages />}>
@@ -140,7 +161,7 @@ function AppRoutes() {
         <Route path="/teacher/profile" element={<TeacherProfile />} />
       </Route>
 
-      {/* SkoolJobs platform admin module — reviews jobs submitted by schools */}
+      {/* SkoolJobs platform admin module — reviews jobs submitted by schools and posts jobs for several schools */}
       <Route element={<RoleRoute roles={["ADMIN"]} />}>
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
@@ -149,18 +170,13 @@ function AppRoutes() {
           <Route path="job-approvals" element={<AdminJobApprovals />} />
           <Route path="jobs" element={<AdminJobs />} />
           <Route path="schools" element={<AdminSchools />} />
+          <Route path="post-job" element={<AdminPostJob />} />
+          <Route path="manage-jobs" element={<AdminManageJobs />} />
         </Route>
       </Route>
 
-      {/* Head Admin module — one login manages jobs across multiple schools */}
-      <Route element={<RoleRoute roles={["HEAD_ADMIN"]} />}>
-        <Route path="/head-admin" element={<HeadAdminLayout />}>
-          <Route index element={<Navigate to="/head-admin/dashboard" replace />} />
-          <Route path="dashboard" element={<HeadAdminDashboard />} />
-          <Route path="post-job" element={<HeadAdminPostJob />} />
-          <Route path="manage-jobs" element={<HeadAdminJobs />} />
-        </Route>
-      </Route>
+      {/* Old head-admin links: those features are now part of the admin area */}
+      <Route path="/head-admin/*" element={<Navigate to="/admin/dashboard" replace />} />
 
       {/* Legacy redirects so old bookmarks / links still work */}
       <Route path="/school-dashboard" element={<Navigate to="/school/dashboard" replace />} />

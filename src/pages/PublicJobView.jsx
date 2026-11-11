@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Building2 } from "lucide-react";
-import { initialJobs } from "../lib/schooldata";
+import { getJobById } from "../services/jobService";
+import { config } from "../config/env";
+import { SAMPLE_JOBS } from "../site/data/sampleJobs";
 import SharedJobDetail from "../components/SharedJobDetail";
 import styles from "./PublicJobView.module.css";
 
@@ -9,22 +11,28 @@ const PublicJobView = () => {
   const { jobId } = useParams();
   const navigate = useNavigate();
 
-  // Load jobs from localStorage, fallback to initialJobs
-  const jobs = useMemo(() => {
-    const saved = localStorage.getItem("skooljobs_jobs");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return initialJobs;
-      }
-    }
-    return initialJobs;
-  }, []);
-
-  const job = useMemo(() => {
-    return jobs.find((j) => String(j.id) === String(jobId));
-  }, [jobs, jobId]);
+  // A shared link is opened by people who don't have the job in their browser: load it from the
+  // Job Posting service (GET /jobs/{jobId}); the demo jobs in `npm run dev:mock`.
+  const [result, setResult] = useState({ jobId: null, job: null });
+  useEffect(() => {
+    let cancelled = false;
+    const load = config.useMockApi
+      ? Promise.resolve(SAMPLE_JOBS.find((j) => String(j.id) === String(jobId)) || null).then(fromSample)
+      : getJobById(jobId).then(({ data }) => fromJobResponse(data));
+    load
+      .catch((error) => {
+        if (error?.response?.status !== 404) console.error("Failed to load job:", error);
+        return null;
+      })
+      .then((job) => {
+        if (!cancelled) setResult({ jobId, job });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
+  const loading = result.jobId !== jobId;
+  const job = loading ? null : result.job;
 
   // Load currentUser to check role
   const currentUser = useMemo(() => {
@@ -35,7 +43,7 @@ const PublicJobView = () => {
     }
   }, []);
 
-  const isLoggedIn = !!currentUser.email;
+  const isLoggedIn = currentUser.id != null;
   const isCandidate = currentUser.role === "candidate";
 
   const [applied, setApplied] = useState(false);
@@ -43,7 +51,7 @@ const PublicJobView = () => {
   const handleApply = () => {
     if (!isLoggedIn) {
       alert("Please log in or sign up as a Teacher to apply for this job.");
-      navigate("/", { state: { from: `/public-job/${jobId}` } });
+      navigate("/login", { state: { from: `/public-job/${jobId}` } });
       return;
     }
     if (!isCandidate) {
@@ -54,6 +62,10 @@ const PublicJobView = () => {
     setApplied(true);
     alert("Success! Your teacher profile has been sent to the recruiter for review.");
   };
+
+  if (loading) {
+    return <div className={styles.notFoundWrap}>Loading job…</div>;
+  }
 
   if (!job) {
     return (
@@ -98,7 +110,8 @@ const PublicJobView = () => {
             ) : (
               <>
                 <Link
-                  to="/"
+                  to="/login"
+                  state={{ from: `/public-job/${jobId}` }}
                   className={styles.navLink}
                 >
                   Log In
@@ -131,3 +144,53 @@ const PublicJobView = () => {
 };
 
 export default PublicJobView;
+
+/** JobResponse (job service) -> the fields SharedJobDetail shows. */
+function fromJobResponse(j) {
+  if (!j) return null;
+  const qualifications = Array.isArray(j.qualificationsRequired)
+    ? j.qualificationsRequired.join(", ")
+    : j.qualificationsRequired;
+  return {
+    id: j.jobId,
+    title: j.title,
+    role: j.title,
+    subject: j.subject,
+    skill: j.subject,
+    school: j.schoolName,
+    companyName: j.schoolName,
+    location: j.location,
+    employmentType: j.employmentType,
+    type: j.employmentType,
+    experience: j.experienceRequired,
+    salaryRange: j.compensation,
+    salary: j.compensation,
+    description: j.description,
+    requirements: j.requirements,
+    qualifications,
+    vacancies: j.vacancies,
+    expiryDate: j.expiryDate,
+  };
+}
+
+/** A demo job (mock mode) in the same shape. */
+function fromSample(j) {
+  if (!j) return null;
+  return {
+    id: j.id,
+    title: j.title,
+    role: j.title,
+    subject: j.subject,
+    skill: j.subject,
+    school: j.school,
+    companyName: j.school,
+    location: j.location,
+    employmentType: j.employmentType,
+    type: j.employmentType,
+    experience: j.experience,
+    salaryRange: j.salary,
+    salary: j.salary,
+    description: j.description,
+    qualifications: j.qualifications.join(", "),
+  };
+}

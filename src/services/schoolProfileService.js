@@ -1,4 +1,4 @@
-import { Configuration, SchoolProfileApi } from "@skooljobs/school-api";
+import { Configuration, SchoolProfileApi } from "@skooljobs/schoolprofile-api";
 import { serviceHttp } from "../api/httpClient";
 import { mockApiEnabled } from "../api";
 import { API_BASE_PATHS } from "./apiConfig";
@@ -29,7 +29,7 @@ export const createSchoolProfile = async (payload) => {
 };
 
 // getMySchoolProfile and linkSchoolAdminInvite are in the SchoolProfile OpenAPI
-// spec, but the published @skooljobs/school-api 0.0.1-SNAPSHOT predates them.
+// spec, but the published @skooljobs/schoolprofile-api client may predate them.
 // Until a client with both is published, they are called directly with the same
 // base path, axios instance and auth headers as the generated client.
 
