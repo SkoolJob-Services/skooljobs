@@ -8,7 +8,7 @@ import { toE164 } from "../../lib/contact";
  *
  *   1. school — POST /school-profiles (SchoolProfile) → schoolProfileId
  *   2. invite — POST /invites (Signup) → inviteId + inviteLink
- *   3. link   — PUT /school-profiles/{schoolProfileId}/admin-invitations/{inviteId}
+ *   3. link   — POST /school-profiles/{schoolProfileId}/admin-invitations/{inviteId}
  *               (SchoolProfile): whoever accepts this invite becomes the
  *               school's admin when Signup reports the acceptance.
  *

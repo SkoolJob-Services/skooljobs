@@ -39,12 +39,12 @@ export const getMySchoolProfile = async () => {
     return serviceHttp.get(`${API_BASE_PATHS.schoolProfile}/school-profiles/me`);
 };
 
-// PUT /school-profiles/{schoolProfileId}/admin-invitations/{inviteId} — Platform Admin only.
+// POST /school-profiles/{schoolProfileId}/admin-invitations/{inviteId} — Platform Admin only.
 // 204: linked (repeating it is safe). 404 SCH_006: school not found (or not stored yet:
 // creation is asynchronous). 409 SCH_007 / SCH_008 / SCH_009: see errorMessages.
 export const linkSchoolAdminInvite = async (schoolProfileId, inviteId) => {
     if (mockApiEnabled) return mockSchoolProfileService.linkSchoolAdminInvite(schoolProfileId, inviteId);
-    return serviceHttp.put(
+    return serviceHttp.post(
         `${API_BASE_PATHS.schoolProfile}/school-profiles/${encodeURIComponent(schoolProfileId)}` +
             `/admin-invitations/${encodeURIComponent(inviteId)}`,
     );
