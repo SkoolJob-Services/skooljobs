@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The real axios instance is replaced; everything else (base paths, the module itself) is real.
-const serviceHttp = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
+const serviceHttp = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock("../api/httpClient", () => ({ serviceHttp }));
 vi.mock("../api", () => ({ mockApiEnabled: false }));
 
@@ -13,7 +13,7 @@ const INVITE = "8d29cb84-7d17-4fb7-b98f-a94cebbd8eb2";
 describe("schoolProfileService: SchoolProfile API contract", () => {
   beforeEach(() => {
     serviceHttp.get.mockReset().mockResolvedValue({ status: 200, data: { schoolProfileId: SCHOOL } });
-    serviceHttp.put.mockReset().mockResolvedValue({ status: 204, data: "" });
+    serviceHttp.post.mockReset().mockResolvedValue({ status: 204, data: "" });
   });
 
   it("reads the caller's own school from GET /school-profiles/me", async () => {
@@ -24,11 +24,11 @@ describe("schoolProfileService: SchoolProfile API contract", () => {
     expect(response.data.schoolProfileId).toBe(SCHOOL);
   });
 
-  it("links an invite with PUT /school-profiles/{schoolProfileId}/admin-invitations/{inviteId} and no body", async () => {
+  it("links an invite with POST /school-profiles/{schoolProfileId}/admin-invitations/{inviteId} and no body", async () => {
     await linkSchoolAdminInvite(SCHOOL, INVITE);
 
-    expect(serviceHttp.put).toHaveBeenCalledTimes(1);
-    expect(serviceHttp.put.mock.calls[0]).toEqual([
+    expect(serviceHttp.post).toHaveBeenCalledTimes(1);
+    expect(serviceHttp.post.mock.calls[0]).toEqual([
       `/api/school-profile/school-profiles/${SCHOOL}/admin-invitations/${INVITE}`,
     ]);
   });
@@ -36,14 +36,14 @@ describe("schoolProfileService: SchoolProfile API contract", () => {
   it("encodes the ids, so a value can't change the path", async () => {
     await linkSchoolAdminInvite("a/../b", "c?d");
 
-    expect(serviceHttp.put).toHaveBeenCalledWith(
+    expect(serviceHttp.post).toHaveBeenCalledWith(
       "/api/school-profile/school-profiles/a%2F..%2Fb/admin-invitations/c%3Fd",
     );
   });
 
   it("passes failures through unchanged for the caller to classify", async () => {
     const conflict = { isAxiosError: true, response: { status: 409, data: { code: "SCH_008" } } };
-    serviceHttp.put.mockRejectedValue(conflict);
+    serviceHttp.post.mockRejectedValue(conflict);
 
     await expect(linkSchoolAdminInvite(SCHOOL, INVITE)).rejects.toBe(conflict);
   });

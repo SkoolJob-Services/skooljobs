@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { authApi, type TenantInfoResponse } from "../../api";
 import { errorMessage } from "../../lib/errorMessages";
 import { channelsOf, type TenantChannels } from "./otpChannels";
+import { loadWithRetry } from "./loadTenant";
 
 type TenantStatus = "loading" | "ready" | "error";
 
@@ -32,8 +33,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
-    authApi
-      .getCurrentTenant()
+    // A dropped connection or gateway error is retried twice before the error page.
+    loadWithRetry(() => authApi.getCurrentTenant(), () => cancelled)
       .then((result) => {
         if (cancelled) return;
         setTenant(result);
