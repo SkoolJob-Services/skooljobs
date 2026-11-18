@@ -31,6 +31,13 @@ import myprofile from "../../../dropdown/Teacher_module/myprofile.json";
 import styles from "./styles/TeacherProfile.module.css";
 import { toOptions, toOptionsMap } from "../../lib/selectOptions";
 import { useImageUpload } from "../../lib/useImageUpload";
+import {
+  DOCUMENT_TYPES,
+  documentIdOf,
+  downloadDocument,
+  uploadDocumentRef,
+} from "../../services/documentService";
+import { DocumentImage } from "../../components/DocumentImage";
 import { validateText, validateFields } from "../../lib/textValidation";
 import {
   updateTeacherProfile,
@@ -69,7 +76,8 @@ const CLASSES_TAUGHT = toOptions(CLASSES_TAUGHT_RAW);
 const languageStatuses = toOptions(languageStatusesRaw);
 const AWARD_TYPES = toOptions(AWARD_TYPES_RAW);
 const COURSE_TYPES = toOptions(COURSE_TYPES_RAW);
-const RESUME_FORMATS = toOptions(RESUME_FORMATS_RAW);
+// The CV Builder writes PDF (printable) or plain text; DOCX only comes from an uploaded file.
+const CREATED_RESUME_FORMATS = toOptions(RESUME_FORMATS_RAW.filter((f) => f !== "DOCX"));
 const SAMPLE_JOB_OPENINGS = toOptions(SAMPLE_JOB_OPENINGS_RAW);
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -260,6 +268,11 @@ const TeacherProfile = () => {
     validating: profileImageValidating,
     validateAndProcess: validateProfilePhoto,
   } = useImageUpload("photo");
+  // Photo and uploaded resumes are stored in document-management ("document:<id>" refs).
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState(null);
+  const resumeFileRef = useRef(null);
+  const [resumeUploading, setResumeUploading] = useState(false);
   const [teacherData, setTeacherData] = useState(() => {
     const saved = localStorage.getItem("skooljobs_teacher_data");
     if (saved) {
@@ -393,17 +406,8 @@ const TeacherProfile = () => {
     fileName: "",
     notes: "",
   });
-  const [savedResumes, setSavedResumes] = useState(() => {
-    const saved = localStorage.getItem("skooljobs_resumes");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  // Loaded from GET /teachers/me (resumes[]); never from this browser.
+  const [savedResumes, setSavedResumes] = useState([]);
   const [savedCoverLetters, setSavedCoverLetters] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("skooljobs_cover_letters") || "[]");
@@ -567,6 +571,7 @@ const TeacherProfile = () => {
           achievements: r.resume_achievements || "",
           format: r.format || "PDF",
           fileName: r.file_name || "",
+          fileUrl: r.file_url || "",
           notes: r.notes || "",
           source: r.source === "uploaded" ? "Uploaded" : "Created",
           skill: r.skill || "",
@@ -913,7 +918,29 @@ const TeacherProfile = () => {
     event.target.value = "";
     if (!file) return;
     const url = await validateProfilePhoto(file);
-    if (url) setProfileImage(url);
+    if (!url) return;
+    URL.revokeObjectURL(url);
+    if (!storedUser.id) {
+      setPhotoUploadError("Your session is missing a user id. Please log in again.");
+      return;
+    }
+    setPhotoUploadError(null);
+    setPhotoUploading(true);
+    try {
+      // Kept as a reference; saved with the profile (profile_photo_url).
+      setProfileImage(
+        await uploadDocumentRef({
+          ownerId: String(storedUser.id),
+          documentType: DOCUMENT_TYPES.TEACHER_PROFILE_PHOTO,
+          file,
+        }),
+      );
+    } catch (error) {
+      console.error("Failed to upload profile photo:", error);
+      setPhotoUploadError("Couldn't upload the photo. Please try again.");
+    } finally {
+      setPhotoUploading(false);
+    }
   };
 
   const updateQualification = (field, value) => {
@@ -1189,12 +1216,17 @@ const TeacherProfile = () => {
 
   const handleResumeFile = (event) => {
     const file = event.target.files[0];
+    resumeFileRef.current = file || null;
     if (file) {
       setResumeDraft((prev) => ({
         ...prev,
         title: prev.title || file.name.replace(/\.[^/.]+$/, ""),
         fileName: file.name,
-        format: file.type === "application/pdf" ? "PDF" : "Text",
+        format: file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+          ? "PDF"
+          : /\.docx$/i.test(file.name)
+            ? "DOCX"
+            : "Text",
       }));
     }
   };
@@ -1243,6 +1275,12 @@ const TeacherProfile = () => {
     file_name: null,
     file_url: null,
   });
+
+  // CV Builder: PDF or Text only (an uploaded file's DOCX doesn't apply).
+  const openCreateResume = () => {
+    setResumeMode("create");
+    setResumeDraft((prev) => (prev.format === "DOCX" ? { ...prev, format: "PDF" } : prev));
+  };
 
   const addResume = async () => {
     if (resumeMode === "create") {
@@ -1371,7 +1409,7 @@ const TeacherProfile = () => {
         alert("Please enter a resume title or choose a file.");
         return;
       }
-      if (!resumeDraft.fileName.trim()) {
+      if (!resumeDraft.fileName.trim() || !resumeFileRef.current) {
         alert("Please choose a file to upload.");
         return;
       }
@@ -1386,12 +1424,30 @@ const TeacherProfile = () => {
       const cleanTitle =
         resumeDraft.title.trim() ||
         resumeDraft.fileName.replace(/\.[^/.]+$/, "");
-      // NOTE: no file-storage backend exists yet (by design, not wired up
-      // here without separate approval - see Resume contract fields:
-      // file_url stays null). Only metadata persists; the picked file's
-      // bytes are never actually uploaded anywhere, same as before this
-      // change - this path cannot produce a retrievable file today.
+      if (!storedUser.id) {
+        alert("Your session is missing a user id. Please log in again before uploading.");
+        return;
+      }
+      // The file goes to document-management; the resume keeps its reference (file_url).
+      let fileUrl;
+      setResumeUploading(true);
+      try {
+        fileUrl = await uploadDocumentRef({
+          ownerId: String(storedUser.id),
+          documentType: DOCUMENT_TYPES.TEACHER_RESUME,
+          file: resumeFileRef.current,
+          fileName: resumeDraft.fileName,
+        });
+      } catch (error) {
+        console.error("Failed to upload resume file:", error);
+        alert("Couldn't upload the resume file. Please try again.");
+        return;
+      } finally {
+        setResumeUploading(false);
+      }
+      resumeFileRef.current = null;
       const newResume = {
+        fileUrl,
         id: crypto.randomUUID(),
         name: resumeDraft.fileName,
         title: cleanTitle,
@@ -1432,7 +1488,7 @@ const TeacherProfile = () => {
         await submitSections(["resumes"], {
           resumes: updated.map(toBackendResume),
         });
-        alert("Resume metadata uploaded successfully! (No file storage is wired up yet, so only the title/filename/format are saved, not the actual file.)");
+        alert("Resume uploaded successfully!");
       } catch (error) {
         console.error("Failed to save resume:", error);
         alert("Resume was added, but saving it to the server failed. Please try again.");
@@ -1441,6 +1497,8 @@ const TeacherProfile = () => {
   };
 
   const handleDeleteResume = async (index) => {
+    const resume = savedResumes[index];
+    if (!window.confirm(`Delete "${resume?.title || resume?.fileName || "this resume"}"?`)) return;
     const updated = savedResumes.filter((_, i) => i !== index);
     setSavedResumes(updated);
 
@@ -1579,6 +1637,15 @@ const TeacherProfile = () => {
   };
 
   const downloadResume = (resume) => {
+    // Uploaded resume: the stored file itself.
+    const documentId = documentIdOf(resume.fileUrl);
+    if (documentId) {
+      downloadDocument(documentId, resume.fileName || `${resume.title || "resume"}`).catch((error) => {
+        console.error("Failed to download resume:", error);
+        alert("Couldn't download the resume. Please try again.");
+      });
+      return;
+    }
     if (resume.format === "PDF") {
       const printWindow = window.open("", "_blank");
       if (!printWindow) {
@@ -1702,18 +1769,37 @@ const TeacherProfile = () => {
     };
 
     await updateTeacherProfile(payload);
-    await refreshProfileFromBackend();
+    await refreshProfileFromBackend(extraFields);
   };
 
-  // Polls GET /teachers/me a few times (the command is processed
-  // asynchronously) and syncs the relevant local state from whatever
-  // comes back, so the UI never relies on localStorage as the source of
-  // truth for persisted data.
-  const refreshProfileFromBackend = async () => {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+  // Polls GET /teachers/me after a save. The update is processed asynchronously (202), so
+  // the first reads can still return the copy from before the save: showing that would make
+  // what was just added disappear (or a deleted item come back). So the server copy is only
+  // applied once the lists that were sent (resumes, qualifications, ...) are on the server;
+  // until then the screen keeps what was just saved.
+  const refreshProfileFromBackend = async (sent = {}) => {
+    const sentLists = Object.entries(sent || {}).filter(([, value]) => Array.isArray(value));
+    const camel = (key) => key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const idOf = (item) =>
+      item && typeof item === "object"
+        ? item.resume_id ?? item.cover_letter_id ?? item.job_id ?? item.id ?? JSON.stringify(item)
+        : String(item);
+    const sameIds = (a, b) => {
+      const left = a.map(idOf).map(String).sort();
+      const right = b.map(idOf).map(String).sort();
+      return left.length === right.length && left.every((v, i) => v === right[i]);
+    };
+    const stored = (data) =>
+      sentLists.every(([key, value]) => {
+        const server = data[key] ?? data[camel(key)];
+        return Array.isArray(server) && sameIds(server, value);
+      });
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 500 : 750));
       try {
         const { data } = await getOwnTeacherProfile();
-        if (data) {
+        if (data && (sentLists.length === 0 ? attempt > 0 : stored(data))) {
           applyBackendProfile(data);
           return data;
         }
@@ -1723,7 +1809,6 @@ const TeacherProfile = () => {
           return null;
         }
       }
-      await new Promise((resolve) => setTimeout(resolve, 400));
     }
     return null;
   };
@@ -3357,7 +3442,7 @@ const TeacherProfile = () => {
                 type="button"
                 variant={resumeMode === "create" ? "filled" : "text"}
                 size="sm"
-                onClick={() => setResumeMode("create")}
+                onClick={openCreateResume}
                 className={styles.resumeModeTab}
               >
                 Create Resume
@@ -3391,7 +3476,7 @@ const TeacherProfile = () => {
                   variant="text"
                   size="sm"
                   endIcon="arrowForwardIcon"
-                  onClick={() => setResumeMode("create")}
+                  onClick={openCreateResume}
                   className={styles.cvBuilderButton}
                 >
                   Open CV Builder
@@ -3415,15 +3500,17 @@ const TeacherProfile = () => {
                   placeholder="e.g. Senior Teacher Resume"
                 />
               </Field>
-              <Field label="Format">
-                <Select
-                  value={resumeDraft.format}
-                  onChange={(v) =>
-                    setResumeDraft((prev) => ({ ...prev, format: v }))
-                  }
-                  options={RESUME_FORMATS}
-                />
-              </Field>
+              {resumeMode === "create" && (
+                <Field label="Format">
+                  <Select
+                    value={resumeDraft.format}
+                    onChange={(v) =>
+                      setResumeDraft((prev) => ({ ...prev, format: v }))
+                    }
+                    options={CREATED_RESUME_FORMATS}
+                  />
+                </Field>
+              )}
               {resumeMode === "upload" && (
                 <Field label="Upload File">
                   <label className={styles.fileUploadLabel}>
@@ -3441,7 +3528,7 @@ const TeacherProfile = () => {
                   </label>
                   {resumeDraft.fileName && (
                     <p className={styles.fileSelectedText}>
-                      Selected: {resumeDraft.fileName}
+                      Selected: {resumeDraft.fileName} ({resumeDraft.format})
                     </p>
                   )}
                 </Field>
@@ -4446,8 +4533,14 @@ const TeacherProfile = () => {
               variant="filled"
               startIcon="plusIcon"
               onClick={addResume}
+              loading={resumeUploading}
+              disabled={resumeUploading}
             >
-              Add Resume
+              {resumeUploading
+                ? "Uploading..."
+                : resumeMode === "create"
+                  ? "Create Resume"
+                  : "Add Resume"}
             </Button>
           )}
         </div>
@@ -4462,7 +4555,7 @@ const TeacherProfile = () => {
             <div className={styles.compactSavedStack}>
               {savedResumes.map((resume, index) => (
                 <div
-                  key={`${resume.fileName}-${index}`}
+                  key={resume.id || `${resume.fileName}-${index}`}
                   className={styles.compactSavedRow}
                 >
                   <div className={styles.compactSavedMinW0}>
@@ -4478,7 +4571,7 @@ const TeacherProfile = () => {
                     </p>
                   </div>
                   <div className={styles.compactSavedActions}>
-                    {resume.source === "Created" && (
+                    {(resume.source === "Created" || documentIdOf(resume.fileUrl)) && (
                       <Button
                         type="button"
                         variant="outlined"
@@ -4692,7 +4785,7 @@ const TeacherProfile = () => {
             <div className={styles.sidebarProfileInner}>
               <div className={styles.sidebarAvatarWrap}>
                 {profileImage ? (
-                  <img
+                  <DocumentImage
                     src={profileImage}
                     alt="profile"
                     className={styles.sidebarAvatarImg}
@@ -4717,17 +4810,21 @@ const TeacherProfile = () => {
                 </span>
               </div>
               <label className={styles.sidebarUploadLabel}>
-                {profileImageValidating ? "Checking Photo..." : "Upload Photo"}
+                {profileImageValidating
+                  ? "Checking Photo..."
+                  : photoUploading
+                    ? "Uploading Photo..."
+                    : "Upload Photo"}
                 <input
                   type="file"
                   hidden
                   accept="image/*"
-                  disabled={profileImageValidating}
+                  disabled={profileImageValidating || photoUploading}
                   onChange={handleProfileImage}
                 />
               </label>
-              {profileImageError && (
-                <p className={styles.errorTextSm}>{profileImageError}</p>
+              {(profileImageError || photoUploadError) && (
+                <p className={styles.errorTextSm}>{profileImageError || photoUploadError}</p>
               )}
               <h1 className={styles.sidebarName}>
                 {teacherData.title} {teacherData.firstName}{" "}

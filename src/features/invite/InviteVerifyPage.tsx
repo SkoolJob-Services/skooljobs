@@ -8,6 +8,7 @@ import { FormAlert } from "../../components/auth/FormAlert";
 import { OtpField } from "../../components/auth/OtpField";
 import { errorMessage } from "../../lib/errorMessages";
 import { useFlow } from "../FlowContext";
+import { useSignupPin } from "../pin/useSignupPin";
 import { OTP_PATTERN } from "../signup/signupForm";
 import { inviteCompleteRequest } from "./inviteRequest";
 
@@ -21,6 +22,7 @@ export function InviteVerifyPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const signupPin = useSignupPin(submitting);
 
   if (!pendingInvite) return <Navigate to="/login" replace />;
   const invite = pendingInvite;
@@ -32,16 +34,31 @@ export function InviteVerifyPage() {
       setOtpError("Enter the 6-digit code.");
       return;
     }
+    const pinFields = signupPin.requestFields();
+    if (pinFields === null) return;
     submittingRef.current = true;
     setSubmitting(true);
     setFormError(null);
     try {
-      await authApi.completeSignup(inviteCompleteRequest(invite, code), invite.sessionId);
+      const response = await authApi.completeSignup(
+        { ...inviteCompleteRequest(invite, code), ...pinFields },
+        invite.sessionId,
+      );
+      const pinSaved = signupPin.remember(
+        response,
+        [invite.firstName, invite.details.maskedTarget].filter(Boolean).join(" · "),
+      );
       setPendingInvite(null);
-      // Verified: the invited account logs in with a login OTP — never straight to a dashboard.
-      snackbar.show({ message: "You're verified. Log in with the email you were invited on.", type: "success" });
+      // Verified: the invited account logs in (PIN or login OTP) — never straight to a dashboard.
+      snackbar.show({
+        message: pinSaved
+          ? "You're verified. In a moment, log in on this device with your PIN."
+          : "You're verified. Log in with the email you were invited on.",
+        type: "success",
+      });
       navigate("/login", { replace: true });
     } catch (error) {
+      if (signupPin.showServerError(error)) return;
       const status = statusOf(error);
       const message = errorMessage(error, "signupComplete");
       if (status === 404 || status === 410) {
@@ -109,13 +126,14 @@ export function InviteVerifyPage() {
             setOtp(value);
             setOtpError(null);
           }}
-          onSubmit={(code) => void verify(code)}
+          onSubmit={signupPin.enabled ? undefined : (code) => void verify(code)}
           error={otpError}
           disabled={submitting}
           autoFocus
           showResend
           onResend={() => void resend()}
         />
+        {signupPin.fields}
         <FormAlert message={formError} />
         <Button type="submit" variant="filled" fullWidth loading={submitting} disabled={submitting || otp.length !== 6}>
           Verify &amp; join

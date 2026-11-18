@@ -22,6 +22,8 @@ export interface PendingLogin {
   channel?: Channel;
   /** Where to go after login. */
   returnTo?: string;
+  /** "Forgot PIN?": after the code, set a new PIN. */
+  forgotPin?: boolean;
 }
 
 export interface PendingInvite {

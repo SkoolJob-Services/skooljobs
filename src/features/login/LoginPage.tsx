@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button, Input } from "@cloudstrytech/ui-components";
 import { authApi } from "../../api";
 import { AuthLayout } from "../../components/auth/AuthLayout";
@@ -13,11 +13,18 @@ import { CHANNEL_LABEL, initialLoginChannel, loginChannelFlags, type Channel } f
 import { useAuth } from "../auth/AuthContext";
 import { findLocalAccount, localLogin, writeLocalProfile } from "../auth/localAccounts";
 import { ROLE_HOME } from "../auth/roles";
+import { deviceStore } from "../pin/deviceStore";
 
 interface LocationState {
   from?: string;
   identifier?: string;
   notice?: string;
+  /** Show the code login even when this device has a PIN account. */
+  useOtp?: boolean;
+  /** Came from "Forgot PIN?": set a new PIN after the code. */
+  forgotPin?: boolean;
+  /** First PIN (not forgotten): only the wording differs. */
+  settingPin?: boolean;
 }
 
 export function LoginPage() {
@@ -25,7 +32,8 @@ export function LoginPage() {
   const location = useLocation();
   const state = (location.state ?? {}) as LocationState;
   const { pendingLogin, setPendingLogin } = useFlow();
-  const { signupAllowed, channels } = useTenant();
+  const { signupAllowed, channels, tenant, pin } = useTenant();
+  const pinAccounts = pin.enabled ? deviceStore.list(tenant?.tenantId) : [];
   const enabled = channels.login;
   const { signIn } = useAuth();
 
@@ -81,7 +89,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       const { sessionId } = await authApi.requestLoginOtp({ identifier: normalized.value, ...loginChannelFlags(channel) });
-      setPendingLogin({ identifier: normalized.value, sessionId, channel, returnTo: state.from });
+      setPendingLogin({ identifier: normalized.value, sessionId, channel, returnTo: state.from, forgotPin: state.forgotPin });
       navigate("/login/verify");
     } catch (error) {
       setFormError(errorMessage(error, "loginRequest"));
@@ -91,17 +99,31 @@ export function LoginPage() {
     }
   }
 
+  // A device with a PIN account logs in with the PIN by default.
+  if (pinAccounts.length > 0 && !state.useOtp && !state.notice) {
+    return <Navigate to="/login/pin" replace state={{ from: state.from }} />;
+  }
+
   return (
     <AuthLayout
-      title="Log in"
+      title={state.forgotPin ? (state.settingPin ? "Set your PIN" : "Forgot PIN") : "Log in"}
       subtitle={
-        enabled.length === 1
+        state.forgotPin
+          ? `Log in with a one-time code, then set ${state.settingPin ? "your" : "a new"} PIN.`
+          : enabled.length === 1
           ? `We'll send a one-time code by ${CHANNEL_LABEL[enabled[0]]}.`
           : "Choose how to receive your one-time code."
       }
       step="Step 1 of 2"
       footer={
         <>
+          {pinAccounts.length > 0 && (
+            <p>
+              <Link to="/login/pin" state={{ from: state.from }}>
+                Log in with your PIN
+              </Link>
+            </p>
+          )}
           {signupAllowed && (
             <p>
               New here? <Link to="/signup">Create an account</Link>

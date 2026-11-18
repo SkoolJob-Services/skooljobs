@@ -1,5 +1,7 @@
 // Shared settings for the public website pages (ported from dev.skooljobs.com).
 
+import skoolJobsLogo from "../assets/brand/skooljobs-logo.png";
+
 // Images that were uploaded to the WordPress media library. They are loaded from
 // the WordPress uploads folder by default. Run `npm run site:assets` to copy them
 // into public/site-assets/, then set VITE_SITE_MEDIA_BASE=/site-assets so the app
@@ -11,7 +13,8 @@ export const SITE_MEDIA_BASE = (
 export const media = (path) => `${SITE_MEDIA_BASE}/${path}`;
 
 export const SITE_IMAGES = {
-  logo: media("2026/05/400dpiLogoCropped.png"),
+  // Bundled with the app (src/assets/brand), not loaded from WordPress.
+  logo: skoolJobsLogo,
   partnerLogos: [
     "2021/05/site-logo.svg",
     "2021/05/logo-20.svg",

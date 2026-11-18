@@ -22,6 +22,11 @@ import Topbar from "../components/topbar";
 import { withoutDemoApplicants, withoutDemoInterviews, withoutDemoJobs } from "../lib/schooldata";
 import { useImageUpload } from "../lib/useImageUpload";
 import { listJobs } from "../services/jobService";
+import { BrandLogo } from "../components/BrandLogo";
+import { DocumentImage } from "../components/DocumentImage";
+import { rememberSavedSchoolProfile, useOwnSchoolProfile } from "../features/school/ownSchoolProfile";
+import { DOCUMENT_TYPES, uploadDocumentRef } from "../services/documentService";
+import { updateSchoolProfile } from "../services/schoolProfileService";
 import styles from "./SchoolLayout.module.css";
 
 
@@ -31,10 +36,13 @@ import styles from "./SchoolLayout.module.css";
 // status field - so `status` below is read-only display derived from the
 // backend's own status/adminReviewStatus strings, not round-tripped on save.
 const JOB_STATUS_DISPLAY = {
-  OPEN: "Active",
   DRAFT: "Draft",
-  CLOSED: "Closed",
+  PENDING_APPROVAL: "Pending Approval",
+  SCHEDULED: "Scheduled",
+  ACTIVE: "Active",
   PAUSED: "Paused",
+  CLOSED: "Closed",
+  EXPIRED: "Expired",
 };
 
 const mapJobResponse = (job) => ({
@@ -53,9 +61,10 @@ const mapJobResponse = (job) => ({
   qualifications: Array.isArray(job.qualificationsRequired)
     ? job.qualificationsRequired.join(", ")
     : job.qualificationsRequired,
+  // A rejected job goes back to DRAFT with the admin's reason.
   status:
-    job.adminReviewStatus === "PENDING"
-      ? "Pending Approval"
+    job.status === "DRAFT" && job.adminReviewStatus === "REJECTED"
+      ? "Rejected"
       : JOB_STATUS_DISPLAY[job.status] || job.status,
   rejectionReason: job.adminRejectionReason,
   applicants: job.applicantsCount || 0,
@@ -97,39 +106,9 @@ const SchoolLayout = () => {
       return [];
     }
   });
-  const [jobsLoading, setJobsLoading] = useState(
-    () => !!localStorage.getItem("schoolProfileId"),
-  );
+  const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState(null);
 
-  // Real jobs owned by this school, from the Job Posting service (GET
-  // /jobs, filtered client-side by schoolProfileId - the backend has no
-  // school-scoped list query). Falls back to the existing mock/localStorage
-  // jobs on fetch failure so the page still renders something.
-  useEffect(() => {
-    const schoolProfileId = localStorage.getItem("schoolProfileId");
-    if (!schoolProfileId) return;
-    let cancelled = false;
-    listJobs()
-      .then(({ data }) => {
-        if (cancelled || !Array.isArray(data)) return;
-        const own = data
-          .filter((j) => j.schoolProfileId === schoolProfileId)
-          .map(mapJobResponse);
-        setJobs(own);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        console.error("Failed to load jobs:", error);
-        setJobsError(error);
-      })
-      .finally(() => {
-        if (!cancelled) setJobsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const [applicants, setApplicants] = useState(() => {
     try {
       const parsed = withoutDemoApplicants(JSON.parse(localStorage.getItem("skooljobs_applicants") || "[]"));
@@ -147,7 +126,11 @@ const SchoolLayout = () => {
     localStorage.setItem("skooljobs_applicants", JSON.stringify(applicants));
   }, [applicants]);
 
-  const [logoImage, setLogoImage] = useState(null);
+  // The School Admin's own school (GET /school-profiles/me): name and logo for the sidebar.
+  const { profile: schoolProfile, refresh: refreshSchoolProfile } = useOwnSchoolProfile();
+  const logoImage = schoolProfile?.logoUrl || null;
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoUploadError, setLogoUploadError] = useState(null);
   const {
     error: logoImageError,
     validating: logoImageValidating,
@@ -172,11 +155,40 @@ const SchoolLayout = () => {
     try { return JSON.parse(localStorage.getItem("currentUser") || "{}"); } catch { return {}; }
   }, []);
 
+  // This school's jobs from the job service (GET /jobs?schoolProfileId=… — every status for
+  // the school's own team). A School Member has no /school-profiles/me, so they see the jobs
+  // they posted themselves.
+  const ownSchoolId = schoolProfile?.schoolProfileId || null;
+  useEffect(() => {
+    let cancelled = false;
+    listJobs(ownSchoolId ? { schoolProfileId: ownSchoolId } : {})
+      .then(({ data }) => {
+        if (cancelled || !Array.isArray(data)) return;
+        const own = ownSchoolId
+          ? data
+          : data.filter((j) => currentUser.id && String(j.postedByUserId) === String(currentUser.id));
+        setJobs(own.map(mapJobResponse));
+        setJobsError(null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to load jobs:", error);
+        setJobsError(error);
+      })
+      .finally(() => {
+        if (!cancelled) setJobsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ownSchoolId, currentUser.id]);
+
   if (!localStorage.getItem("currentUser")) {
     return <Navigate to="/app" replace />;
   }
 
-  const schoolName = currentUser.companyName || currentUser.schoolName || currentUser.firstName || "Som Lalit School";
+  const schoolName =
+    schoolProfile?.schoolName || currentUser.companyName || currentUser.schoolName || currentUser.firstName || "Your school";
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
@@ -190,7 +202,30 @@ const SchoolLayout = () => {
     e.target.value = "";
     if (!file) return;
     const url = await validateLogoImage(file);
-    if (url) setLogoImage(url);
+    if (!url) return;
+    URL.revokeObjectURL(url);
+    if (!schoolProfile?.schoolProfileId) return;
+    setLogoUploadError(null);
+    setLogoUploading(true);
+    try {
+      // Store the file, then save its reference as the school's logo (unsent fields are kept).
+      const logoUrl = await uploadDocumentRef({
+        ownerId: schoolProfile.schoolProfileId,
+        documentType: DOCUMENT_TYPES.SCHOOL_LOGO,
+        file,
+      });
+      await updateSchoolProfile({
+        schoolProfileId: schoolProfile.schoolProfileId,
+        schoolName: schoolProfile.schoolName,
+        logoUrl,
+      });
+      rememberSavedSchoolProfile({ ...schoolProfile, logoUrl });
+    } catch (error) {
+      console.error("Failed to update the school logo:", error);
+      setLogoUploadError("Couldn't update the logo. Please try again.");
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   const handleMarkRead = (id) => {
@@ -265,6 +300,8 @@ const SchoolLayout = () => {
     applicants,
     setApplicants,
     logoImage,
+    schoolProfile,
+    refreshSchoolProfile,
     notifications,
     setNotifications,
     interviews,
@@ -280,25 +317,29 @@ const SchoolLayout = () => {
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner}>
-            <label className={styles.logoUploadLabel}>
-              <Upload size={13} />
-              {logoImageValidating ? "Checking..." : "Upload Institute Logo"}
-              <input
-                type="file"
-                hidden
-                accept="image/*"
-                disabled={logoImageValidating}
-                onChange={handleLogoUpload}
-              />
-            </label>
-            {logoImageError && (
-              <p className={styles.uploadError}>{logoImageError}</p>
+            <BrandLogo onDark height={44} className={styles.brandLogo} />
+            {/* Only the School Admin has the profile (and may change the logo). */}
+            {schoolProfile?.schoolProfileId && (
+              <label className={styles.logoUploadLabel}>
+                <Upload size={13} />
+                {logoImageValidating ? "Checking..." : logoUploading ? "Uploading..." : "Upload Institute Logo"}
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  disabled={logoImageValidating || logoUploading}
+                  onChange={handleLogoUpload}
+                />
+              </label>
+            )}
+            {(logoImageError || logoUploadError) && (
+              <p className={styles.uploadError}>{logoImageError || logoUploadError}</p>
             )}
 
             <div className={styles.schoolInfoRow}>
               <div className={styles.logoBox}>
                 {logoImage ? (
-                  <img src={logoImage} alt="logo" className={styles.logoImage} />
+                  <DocumentImage src={logoImage} alt="logo" className={styles.logoImage} />
                 ) : (
                   <Building2 size={22} className={styles.logoIcon} />
                 )}
@@ -352,6 +393,7 @@ const SchoolLayout = () => {
 
           <div className={styles.mobileNavWrap}>
             <div className={styles.mobileNavBar}>
+              <BrandLogo height={30} className={styles.mobileNavLogo} />
               <span className={styles.mobileNavTitle}>
                 {sidebarItems.find((item) => item.path === location.pathname)?.label || "Menu"}
               </span>

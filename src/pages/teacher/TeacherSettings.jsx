@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { HelpCircle, KeyRound, Save, Trash2, Bell, Eye } from "lucide-react";
+import { HelpCircle, Save, Trash2, Bell, Eye } from "lucide-react";
 import FormField from "../../components/FormField";
 import styles from "./styles/TeacherSettings.module.css";
+import { PinSection } from "../../features/pin/PinSection";
 import { Button, Input } from "@cloudstrytech/ui-components";
 import {
   updateTeacherProfile,
@@ -85,9 +86,6 @@ const TeacherSettings = () => {
   const [deleteChecks, setDeleteChecks] = useState({ c1: false, c2: false });
   const [deleteOtp, setDeleteOtp] = useState("");
   const [deleteOtpSent, setDeleteOtpSent] = useState(false);
-
-  // Password change state
-  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
 
   return (
     <div className={styles.wrapper}>
@@ -185,73 +183,8 @@ const TeacherSettings = () => {
         </div>
       </div>
 
-      {/* --- Change Password --- */}
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <span className={styles.cardIcon}>
-            <KeyRound size={18} />
-          </span>
-          <h3 className={styles.cardTitle}>Change Password</h3>
-        </div>
-        <div className={styles.passwordGrid}>
-          <FormField label="Current Password">
-            <Input
-              type="password"
-              value={pwForm.current}
-              onChange={(value) =>
-                setPwForm((p) => ({ ...p, current: value }))
-              }
-              placeholder="Enter current password"
-            />
-          </FormField>
-          <FormField label="New Password">
-            <Input
-              type="password"
-              value={pwForm.next}
-              onChange={(value) =>
-                setPwForm((p) => ({ ...p, next: value }))
-              }
-              placeholder="Enter new password"
-            />
-          </FormField>
-          <FormField label="Confirm New Password">
-            <Input
-              type="password"
-              value={pwForm.confirm}
-              onChange={(value) =>
-                setPwForm((p) => ({ ...p, confirm: value }))
-              }
-              placeholder="Re-enter new password"
-            />
-          </FormField>
-        </div>
-        <div className={styles.passwordActions}>
-          <Button
-            variant="filled"
-            onClick={() => {
-              if (!pwForm.current) {
-                alert("Enter your current password.");
-                return;
-              }
-
-              if (pwForm.next !== pwForm.confirm) {
-                alert("New passwords do not match.");
-                return;
-              }
-
-              if (pwForm.next.length < 6) {
-                alert("Password must be at least 6 characters.");
-                return;
-              }
-
-              alert("Password updated successfully!");
-              setPwForm({ current: "", next: "", confirm: "" });
-            }}
-          >
-            <Save size={16} /> Update Password
-          </Button>
-        </div>
-      </div>
+      {/* --- PIN login (only when the organisation has it switched on) --- */}
+      <PinSection />
 
       {/* --- Help & Support --- */}
       <div className={styles.card}>

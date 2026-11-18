@@ -38,6 +38,9 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
       };
+  if (!remote && env.DEV_DOCUMENT_API_TARGET) {
+    proxy["/api/document-management"] = apiProxy(env.DEV_DOCUMENT_API_TARGET, /^\/api\/document-management/);
+  }
   if (!remote && env.DEV_APPLICATION_API_TARGET) {
     proxy["/api/application"] = apiProxy(env.DEV_APPLICATION_API_TARGET, /^\/api\/application/);
   }
@@ -64,11 +67,11 @@ export default defineConfig(({ mode }) => {
           globIgnores: ["**/group1-shard*.js", "env.js"],
         },
         manifest: {
-          name: "Skool Jobs",
-          short_name: "Skool Jobs",
-          description: "",
+          name: "SkoolJobs – Mentors Pathway",
+          short_name: "SkoolJobs",
+          description: "Connecting teachers with schools.",
           display: "standalone",
-          theme_color: "#575A59",
+          theme_color: "#044890",
           background_color: "#ffffff",
           icons: [
             {
@@ -80,6 +83,12 @@ export default defineConfig(({ mode }) => {
               src: "/logo512.png",
               sizes: "512x512",
               type: "image/png",
+            },
+            {
+              src: "/logo512-maskable.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "maskable",
             },
           ],
           screenshots: [

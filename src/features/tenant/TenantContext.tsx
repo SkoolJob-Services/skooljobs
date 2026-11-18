@@ -16,6 +16,8 @@ interface TenantContextValue {
   signupTypes: string[];
   /** Channels switched on for login codes, signup verification and invites. */
   channels: TenantChannels;
+  /** PIN login on trusted devices (tenant.pinLogin). */
+  pin: { enabled: boolean; maxAttempts: number };
   retry(): void;
 }
 
@@ -62,11 +64,18 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       signupAllowed: policy === undefined || OPEN_POLICIES.includes(policy),
       signupTypes: tenant?.selfSignupTypes ?? [],
       channels: channelsOf(tenant),
+      pin: pinSettingsOf(tenant),
       retry,
     };
   }, [status, tenant, error, retry]);
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
+}
+
+/** tenant.pinLogin (TenantInfoResponse.pinLogin): PIN login switched on for this tenant, and its attempt limit. */
+export function pinSettingsOf(tenant: TenantInfoResponse | null): { enabled: boolean; maxAttempts: number } {
+  const settings = tenant?.pinLogin;
+  return { enabled: settings?.enabled === true, maxAttempts: settings?.maxAttempts ?? 5 };
 }
 
 export function useTenant(): TenantContextValue {

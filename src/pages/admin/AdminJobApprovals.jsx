@@ -8,13 +8,15 @@ import SelectOrOther from "../../components/ui/SelectOrOther";
 import ui from "./styles/AdminUi.module.css";
 import styles from "./styles/AdminJobApprovals.module.css";
 import { APPROVED_STATUSES, PENDING, REJECTED, statusChipClass } from "./jobStatus";
+import { reviewJob } from "../../services/jobService";
 
 const rejectionReasonOptions = toOptions(managejobsOptions.Rejection_reason);
 const OTHER_VALUE = "Other";
 
 const tabs = [
   { key: "pending", label: "Pending", match: (s) => s === PENDING },
-  { key: "approved", label: "Approved", match: (s) => APPROVED_STATUSES.includes(s) },
+  // Server jobs: approved by the admin, whatever their lifecycle status since.
+  { key: "approved", label: "Approved", match: (s, j) => (j.fromServer ? j.review === "APPROVED" : APPROVED_STATUSES.includes(s)) },
   { key: "rejected", label: "Rejected", match: (s) => s === REJECTED },
 ];
 
@@ -25,7 +27,10 @@ const emptyCopy = {
 };
 
 const AdminJobApprovals = () => {
-  const { jobs, setJobs } = useOutletContext();
+  // jobs: the schools' jobs from the job service, then the ones kept in this browser.
+  const { jobs, setJobs, setServerJobs, serverJobsStatus, refreshServerJobs } = useOutletContext();
+  const [busyId, setBusyId] = useState(null);
+  const [actionError, setActionError] = useState("");
 
   const [activeTab, setActiveTab] = useState("pending");
   const [search, setSearch] = useState("");
@@ -38,7 +43,7 @@ const AdminJobApprovals = () => {
   const tab = tabs.find((t) => t.key === activeTab);
   const query = search.trim().toLowerCase();
   const visibleJobs = jobs
-    .filter((j) => tab.match(j.status))
+    .filter((j) => tab.match(j.status, j))
     .filter(
       (j) =>
         !query ||
@@ -46,7 +51,8 @@ const AdminJobApprovals = () => {
           .filter(Boolean)
           .some((field) => field.toLowerCase().includes(query)),
     )
-    .sort((a, b) => a.id - b.id);
+    // Oldest submission first (the queue order).
+    .sort((a, b) => String(a.createdAt || a.date || "").localeCompare(String(b.createdAt || b.date || "")));
 
   const switchTab = (key) => {
     setActiveTab(key);
@@ -54,7 +60,43 @@ const AdminJobApprovals = () => {
     setRejectingId(null);
   };
 
-  const approveJob = (id) => {
+  /** Applies the decision on the job service (POST /jobs/review), then shows it straight away. */
+  const decide = async (job, decision, reason) => {
+    setActionError("");
+    setBusyId(job.id);
+    try {
+      await reviewJob(job.id, decision, reason);
+      const now = new Date();
+      // Same rule as the service: APPROVED → ACTIVE, or SCHEDULED until publishAt; REJECTED → DRAFT.
+      const approvedStatus = job.publishAt && new Date(job.publishAt) > now ? "Scheduled" : "Active";
+      setServerJobs((prev) =>
+        prev.map((j) =>
+          j.id === job.id
+            ? decision === "APPROVED"
+              ? { ...j, review: "APPROVED", status: approvedStatus, rejectionReason: "" }
+              : { ...j, review: "REJECTED", status: REJECTED, rejectionReason: reason }
+            : j,
+        ),
+      );
+      // The service stores the decision a moment later (202): reload then.
+      setTimeout(() => refreshServerJobs(), 2000);
+      return true;
+    } catch (error) {
+      console.error("Job review failed:", error);
+      const message = error?.response?.data?.message;
+      setActionError(message ? `Couldn't save the decision: ${message}` : "Couldn't save the decision. Please try again.");
+      return false;
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const approveJob = async (id) => {
+    const job = jobs.find((j) => j.id === id);
+    if (job?.fromServer) {
+      if (await decide(job, "APPROVED")) setExpandedId(null);
+      return;
+    }
     setJobs((prev) =>
       prev.map((j) => (j.id === id ? { ...j, status: "Approved", rejectionReason: "" } : j)),
     );
@@ -69,10 +111,18 @@ const AdminJobApprovals = () => {
     setReasonError("");
   };
 
-  const confirmReject = (id) => {
+  const confirmReject = async (id) => {
     const reason = reasonChoice === OTHER_VALUE ? reasonOther.trim() : reasonChoice;
     if (!reason) {
       setReasonError("Select or enter a reason for rejecting this job.");
+      return;
+    }
+    const job = jobs.find((j) => j.id === id);
+    if (job?.fromServer) {
+      if (await decide(job, "REJECTED", reason)) {
+        setRejectingId(null);
+        setExpandedId(null);
+      }
       return;
     }
     setJobs((prev) =>
@@ -89,7 +139,9 @@ const AdminJobApprovals = () => {
 
   const [emptyTitle, emptyText] = query
     ? ["No matching jobs", "Try a different job title, school or location."]
-    : emptyCopy[activeTab];
+    : serverJobsStatus === "loading"
+      ? ["Loading jobs…", "Fetching the jobs schools have submitted."]
+      : emptyCopy[activeTab];
 
   return (
     <div className={ui.page}>
@@ -103,19 +155,38 @@ const AdminJobApprovals = () => {
         </div>
       </div>
 
-      <div className={`${ui.notice} ${ui.noticeInfo}`} role="note">
-        <Info size={16} aria-hidden="true" />
-        <span>
-          There's no job-approval API yet. Decisions are saved to the job list
-          in this browser only and won't reach other devices or the server.
-        </span>
-      </div>
+      {serverJobsStatus === "local" && (
+        <div className={`${ui.notice} ${ui.noticeInfo}`} role="note">
+          <Info size={16} aria-hidden="true" />
+          <span>
+            You're logged in with the local admin account, which can't reach the job service.
+            Log in with a platform admin account (one-time code) to review the schools' jobs.
+          </span>
+        </div>
+      )}
+      {serverJobsStatus === "error" && (
+        <div className={`${ui.notice} ${ui.noticeInfo}`} role="alert">
+          <Info size={16} aria-hidden="true" />
+          <span>
+            Couldn't load the jobs from the server.{" "}
+            <button type="button" className={ui.linkButton} onClick={() => refreshServerJobs()}>
+              Try again
+            </button>
+          </span>
+        </div>
+      )}
+      {actionError && (
+        <div className={`${ui.notice} ${ui.noticeInfo}`} role="alert">
+          <Info size={16} aria-hidden="true" />
+          <span>{actionError}</span>
+        </div>
+      )}
 
       <section className={ui.card}>
         <div className={styles.toolbar}>
           <div className={styles.tabs} role="tablist" aria-label="Approval status">
             {tabs.map((t) => {
-              const count = jobs.filter((j) => t.match(j.status)).length;
+              const count = jobs.filter((j) => t.match(j.status, j)).length;
               const selected = t.key === activeTab;
               return (
                 <button
@@ -202,7 +273,7 @@ const AdminJobApprovals = () => {
                           </button>
                           {isPending && (
                             <>
-                              <Button variant="filled" onClick={() => approveJob(job.id)}>
+                              <Button variant="filled" onClick={() => approveJob(job.id)} disabled={busyId === job.id}>
                                 Approve
                               </Button>
                               <Button variant="outlined" onClick={() => startReject(job.id)}>
@@ -243,7 +314,7 @@ const AdminJobApprovals = () => {
                                 <p className={styles.fieldError} role="alert">{reasonError}</p>
                               )}
                               <div className={styles.rejectActions}>
-                                <Button variant="filled" onClick={() => confirmReject(job.id)}>
+                                <Button variant="filled" onClick={() => confirmReject(job.id)} disabled={busyId === job.id}>
                                   Confirm Rejection
                                 </Button>
                                 <Button variant="text" onClick={() => setRejectingId(null)}>

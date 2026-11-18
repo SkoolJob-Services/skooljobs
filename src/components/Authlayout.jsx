@@ -1,4 +1,6 @@
 import styles from "./styles/Authlayout.module.css";
+import { BrandLogo } from "./BrandLogo";
+import { Link } from "react-router-dom";
 
 function AuthLayout({ children, title, activeTab = 'candidate', onTabChange }) {
   return (
@@ -8,6 +10,9 @@ function AuthLayout({ children, title, activeTab = 'candidate', onTabChange }) {
         {/* Left Side */}
         <div className={styles.leftPanel}>
           <div>
+            <Link to="/" className={styles.brandLink} aria-label="SkoolJobs home">
+              <BrandLogo onDark height={56} />
+            </Link>
             <h1 className={styles.title}>
               {title}
             </h1>

@@ -15,6 +15,8 @@ export const API_BASE_PATHS = {
     job: `${API_ORIGIN}/api/job`,
     teacherProfile: `${API_ORIGIN}/api/teacher-profile`,
     application: `${API_ORIGIN}/api/application`,
+    // document-management: teacher photos/resumes, school logo/cover/gallery (documentService.ts).
+    document: `${API_ORIGIN}/api/document-management`,
 };
 
 // WebSocket notifications: same host as the page, ws/wss matching http/https.

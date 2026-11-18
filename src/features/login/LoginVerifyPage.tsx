@@ -10,6 +10,7 @@ import { maskIdentifier } from "../../lib/contact";
 import { errorMessage } from "../../lib/errorMessages";
 import { useAuth } from "../auth/AuthContext";
 import { useFlow } from "../FlowContext";
+import { useTenant } from "../tenant/TenantContext";
 import { CHANNEL_LABEL, loginChannelFlags } from "../tenant/otpChannels";
 import { OTP_PATTERN } from "../signup/signupForm";
 
@@ -18,6 +19,7 @@ export function LoginVerifyPage() {
   const snackbar = useSnackbar();
   const { signIn } = useAuth();
   const { pendingLogin, setPendingLogin } = useFlow();
+  const { pin } = useTenant();
 
   const [otp, setOtp] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
@@ -44,7 +46,13 @@ export function LoginVerifyPage() {
       const response = await authApi.verifyLoginOtp({ identifier, otp: code }, sessionId);
       signIn(response, identifier);
       setPendingLogin(null);
-      navigate(returnTo && returnTo !== "/login" && returnTo !== "/" ? returnTo : "/app", { replace: true });
+      const next = returnTo && returnTo !== "/login" && returnTo !== "/" ? returnTo : "/app";
+      // Offer (or, after "Forgot PIN?", ask for) a PIN for this device.
+      if (pin.enabled) {
+        navigate("/pin/setup", { replace: true, state: { returnTo: next, forgotPin: pendingLogin?.forgotPin } });
+      } else {
+        navigate(next, { replace: true });
+      }
     } catch (error) {
       const status = statusOf(error);
       const message = errorMessage(error, "loginVerify");

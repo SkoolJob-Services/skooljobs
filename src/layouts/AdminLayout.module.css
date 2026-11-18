@@ -86,35 +86,15 @@
   gap: 0.75rem;
 }
 
-.brandMark {
-  display: flex;
-  height: 2.75rem;
-  width: 2.75rem;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.75rem;
-  background: linear-gradient(135deg, var(--color-light), #cdb98a);
-  color: var(--color-primary-dark);
-  font-weight: 800;
-  font-size: 0.9rem;
-}
 
 .brandText {
   min-width: 0;
   flex: 1 1 0%;
 }
 
-.brandName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #fff;
-}
 
 .brandSub {
+  margin-top: 0.5rem;
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.6);
   text-transform: uppercase;

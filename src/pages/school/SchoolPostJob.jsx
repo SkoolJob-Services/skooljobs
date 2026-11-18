@@ -230,16 +230,17 @@ const SchoolPostJob = () => {
       .map((lang) => `${lang.name} - ${lang.proficiency}`);
 
     const scheduled = form.publishOption === "Publish Later";
+    // publishAt is an Instant: local date + time → ISO with time zone (e.g. 2026-11-20T03:30:00.000Z).
     const publishAt =
       scheduled && form.publishDate && form.publishTime
-        ? `${form.publishDate}T${form.publishTime}:00`
+        ? new Date(`${form.publishDate}T${form.publishTime}`).toISOString()
         : undefined;
 
     const compensation = buildCompensationString();
 
     return {
-      schoolProfileId,
-      postedByUserId: String(storedUser.id),
+      schoolProfileId: schoolProfileId || undefined,
+      postedByUserId: storedUser.id ? String(storedUser.id) : undefined,
       title: form.jobTitle,
       subject: form.subject || undefined,
       roleCategory: form.roleCategory || undefined,
@@ -283,16 +284,17 @@ const SchoolPostJob = () => {
     }
     if (!checkContent()) return;
 
-    // The caller's own school, from the server (never localStorage).
+    // The caller's own school, from the server (never localStorage). A School Member has
+    // no /school-profiles/me (404): the job service then uses the school they belong to.
     let schoolProfileId;
     try {
       ({ data: { schoolProfileId } } = await getMySchoolProfile());
     } catch (error) {
-      if (error?.response?.status !== 404) console.error("Failed to load school profile:", error);
-    }
-    if (!schoolProfileId) {
-      alert("Please save your School Profile before posting a job.");
-      return;
+      if (error?.response?.status !== 404) {
+        console.error("Failed to load school profile:", error);
+        alert("Couldn't load your school. Please try again.");
+        return;
+      }
     }
 
     const payload = buildJobApiPayload(schoolProfileId);
@@ -311,7 +313,9 @@ const SchoolPostJob = () => {
       navigate("/school/manage-jobs");
     } catch (error) {
       console.error("Job API error:", error);
-      alert("Failed to submit job to SkoolJobs. Please try again.");
+      // ErrorResponse { code, message } from the job service, when present.
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage ? `Failed to submit the job: ${serverMessage}` : "Failed to submit job to SkoolJobs. Please try again.");
     } finally {
       setIsPosting(false);
     }
