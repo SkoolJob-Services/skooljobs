@@ -2,20 +2,30 @@ import { useNavigate, useOutletContext } from "react-router-dom";
 import { Building2 } from "lucide-react";
 import styles from "./styles/SchoolViewProfile.module.css";
 import { Button } from "@cloudstrytech/ui-components";
+import { DocumentImage } from "../../components/DocumentImage";
 
 const SchoolViewProfile = () => {
   const navigate = useNavigate();
-  const { logoImage, currentUser, schoolName } = useOutletContext();
+  // schoolProfile: GET /school-profiles/me (SchoolLayout), with the last save shown straight away.
+  const { logoImage, currentUser, schoolName, schoolProfile } = useOutletContext();
+  const p = schoolProfile || {};
+  const address = [p.address?.city, p.address?.state].filter(Boolean).join(", ");
 
   const details = [
-    { label: "Email", value: currentUser.email || "Not added" },
-    { label: "Phone", value: currentUser.phone || "Not added" },
-    { label: "City", value: currentUser.city || "Not added" },
+    { label: "Email", value: p.contact?.email || currentUser.email || "Not added" },
+    { label: "Phone", value: p.contact?.phone || currentUser.phone || "Not added" },
+    { label: "City", value: address || currentUser.city || "Not added" },
     { label: "Institute Name", value: schoolName },
-    { label: "Account Type", value: "School / Institution" },
+    { label: "Board", value: p.board || "Not added" },
+    { label: "Level", value: p.level || "Not added" },
+    { label: "Medium", value: p.medium || "Not added" },
+    { label: "Established", value: p.establishedYear || "Not added" },
+    { label: "Website", value: p.contact?.website || "Not added" },
     {
       label: "Total Teachers",
-      value: currentUser.totalTeachers ? `${currentUser.totalTeachers} Teachers` : "Not added",
+      value: p.totalTeachers || currentUser.totalTeachers
+        ? `${p.totalTeachers || currentUser.totalTeachers} Teachers`
+        : "Not added",
     },
   ];
 
@@ -34,7 +44,7 @@ const SchoolViewProfile = () => {
           <div className={styles.profileRow}>
             <div className={styles.logoWrap}>
               {logoImage ? (
-                <img src={logoImage} alt="logo" className={styles.logoImg} />
+                <DocumentImage src={logoImage} alt="logo" className={styles.logoImg} />
               ) : (
                 <Building2 size={36} className={styles.logoIcon} />
               )}

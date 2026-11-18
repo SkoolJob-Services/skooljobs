@@ -19,7 +19,9 @@ import {
 } from "lucide-react";
 import { resumesData } from "../lib/teacherdata";
 import { computeJobMatch, loadTeacherMatchProfile } from "../lib/jobMatch";
-import { applyToJob } from "../services/applicationService";
+import { applyToJob, withdrawApplication } from "../services/applicationService";
+import { getJobById } from "../services/jobService";
+import { APPLICATION_STATUS_LABELS, useOwnApplications } from "../features/teacher/ownApplications";
 import {
   applicantSnapshot,
   experienceYears,
@@ -27,14 +29,43 @@ import {
   toMatchProfile,
   useOwnTeacherProfile,
 } from "../features/teacher/ownTeacherProfile";
-import { usePublicJobs } from "../site/hooks/usePublicJobs";
+import { mapPublicJob, usePublicJobs } from "../site/hooks/usePublicJobs";
 import {
   updateTeacherProfile,
 } from "../services/teacherprofileService";
 import styles from "./TeacherLayout.module.css";
+import { DocumentImage } from "../components/DocumentImage";
+import { BrandLogo } from "../components/BrandLogo";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** mapPublicJob() result → the job card shape the teacher pages use. */
+const toTeacherJob = (j) => ({
+  id: j.id,
+  role: j.title || "Teaching Position",
+  school: j.school || "",
+  location: j.location || "",
+  type: j.employmentType || "",
+  salary: j.salary || "",
+  skill: j.subject || "",
+  description: j.description,
+  qualifications: (j.qualifications || []).join(", "),
+  roleType: j.roleCategory,
+  postedDate: j.postedDate,
+});
+
+/** Teacher contract Resume (GET /teachers/me resumes[]) → the resume shape the pages use. */
+const fromBackendResume = (r) => ({
+  id: r.resume_id || r.resumeId,
+  name: r.file_name || r.fileName || r.title || "Resume",
+  title: r.title || "",
+  skill: r.skill || "",
+  skills: r.skills || "",
+  score: r.score,
+  source: r.source,
+  fileUrl: r.file_url || r.fileUrl || "",
+});
 
 const profileSections = [
   { id: "basic", label: "My Profile" },
@@ -97,11 +128,7 @@ const TeacherLayout = () => {
   const completion = profileCompletion(teacherProfile);
 
   const [profileImage, setProfileImage] = useState(null);
-  const [appliedJobs, setAppliedJobs] = useState(() => {
-    const saved = localStorage.getItem("skooljobs_applied_jobs");
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [savedJobs, setSavedJobs] = useState(() => {
+  const [localSavedJobs, setSavedJobs] = useState(() => {
     const saved = localStorage.getItem("skooljobs_saved_jobs");
     return saved ? JSON.parse(saved) : [];
   });
@@ -114,24 +141,12 @@ const TeacherLayout = () => {
   const allJobs = useMemo(() => {
     const matchProfile = toMatchProfile(teacherProfile) || loadTeacherMatchProfile();
     return liveJobs.map((j) => {
-      const job = {
-        id: j.id,
-        role: j.title || "Teaching Position",
-        school: j.school || "",
-        location: j.location || "",
-        type: j.employmentType || "",
-        salary: j.salary || "",
-        skill: j.subject || "",
-        description: j.description,
-        qualifications: j.qualifications.join(", "),
-        roleType: j.roleCategory,
-        postedDate: j.postedDate,
-      };
+      const job = toTeacherJob(j);
       return { ...job, match: computeJobMatch(job, matchProfile) };
     });
   }, [liveJobs, teacherProfile]);
 
-  const [resumes, setResumes] = useState(() => {
+  const [localResumes, setResumes] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("skooljobs_resumes") || "[]");
       // Earlier versions stored the demo resumes here for every teacher: drop them.
@@ -142,20 +157,91 @@ const TeacherLayout = () => {
     }
   });
 
-  const [selectedResume, setSelectedResume] = useState(() => resumes[0] || null);
+  // Resumes saved on the teacher profile carry the resume_id an application needs.
+  const backendResumes = useMemo(
+    () => (teacherProfile?.resumes || []).map(fromBackendResume).filter((r) => UUID_PATTERN.test(String(r.id))),
+    [teacherProfile],
+  );
+  const resumes = backendResumes.length > 0 ? backendResumes : localResumes;
+  const [pickedResume, setSelectedResume] = useState(() => localResumes[0] || null);
+  const selectedResume =
+    (pickedResume && resumes.find((r) => String(r.id) === String(pickedResume.id))) || resumes[0] || null;
 
   const [currentUser, setCurrentUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("currentUser") || "{}"); } catch { return {}; }
   });
 
-  // Persist candidate states
+  // Applications and interviews (application service).
+  const {
+    applications,
+    interviews: myInterviews,
+    status: applicationsStatus,
+    refresh: refreshApplications,
+    patchApplications,
+  } = useOwnApplications(currentUser.id);
+
+  // Details of applied jobs no longer in the live list (closed, paused, expired).
+  const [extraJobs, setExtraJobs] = useState({});
   useEffect(() => {
-    localStorage.setItem("skooljobs_applied_jobs", JSON.stringify(appliedJobs));
-  }, [appliedJobs]);
+    const known = new Set(allJobs.map((j) => String(j.id)));
+    const missing = [
+      ...new Set(applications.map((a) => String(a.job_id)).filter((id) => id && !known.has(id) && !(id in extraJobs))),
+    ];
+    if (missing.length === 0) return undefined;
+    let cancelled = false;
+    Promise.all(
+      missing.map((id) =>
+        getJobById(id).then(
+          ({ data }) => [id, toTeacherJob(mapPublicJob(data))],
+          () => [id, null],
+        ),
+      ),
+    ).then((entries) => {
+      if (!cancelled) setExtraJobs((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [applications, allJobs, extraJobs]);
+
+  /** Applied jobs (not withdrawn) as job cards, with the application's id and status. */
+  const appliedJobs = useMemo(() => {
+    const byId = new Map(allJobs.map((j) => [String(j.id), j]));
+    return applications
+      .filter((a) => a.status !== "withdrawn")
+      .map((a) => {
+        const jobId = String(a.job_id);
+        const job = byId.get(jobId) || extraJobs[jobId] || { id: jobId, role: "Job", school: "" };
+        return {
+          ...job,
+          id: jobId,
+          applicationId: a.application_id,
+          applicationStatus: a.status,
+          status: APPLICATION_STATUS_LABELS[a.status] || "Under Review",
+          appliedDate: a.applied_date,
+          nextInterview: a.next_interview || null,
+        };
+      })
+      .sort((x, y) => String(y.appliedDate || "").localeCompare(String(x.appliedDate || "")));
+  }, [applications, allJobs, extraJobs]);
+
+  // Persist candidate states
 
   useEffect(() => {
-    localStorage.setItem("skooljobs_saved_jobs", JSON.stringify(savedJobs));
-  }, [savedJobs]);
+    localStorage.setItem("skooljobs_saved_jobs", JSON.stringify(localSavedJobs));
+  }, [localSavedJobs]);
+
+  // Bookmarks kept on the teacher profile (saved_jobs), shown when this browser has none yet.
+  const savedJobs = useMemo(() => {
+    if (localSavedJobs.length > 0) return localSavedJobs;
+    const byId = new Map(allJobs.map((j) => [String(j.id), j]));
+    return (teacherProfile?.savedJobs || [])
+      .map((sj) => {
+        const job = byId.get(String(sj.job_id || sj.jobId));
+        return job ? { ...job, savedAt: sj.saved_at || sj.savedAt } : null;
+      })
+      .filter(Boolean);
+  }, [localSavedJobs, allJobs, teacherProfile]);
 
   useEffect(() => {
     localStorage.setItem("skooljobs_teacher_activities", JSON.stringify(activities));
@@ -235,54 +321,98 @@ const TeacherLayout = () => {
     setActivities((prev) => [{ message, date: new Date().toISOString(), type }, ...prev]);
   };
 
-  const handleApply = (job) => {
-    if (!appliedJobs.some((item) => item.id === job.id)) {
-      setAppliedJobs((prev) => [...prev, { ...job, appliedDate: new Date().toISOString() }]);
-      addActivity(`Applied for ${job.role} at ${job.school}`, "apply");
-
-      // Submit to the Application API. The local list above stays the UI's
-      // source of truth until jobs/resumes carry backend IDs, so a failed
-      // call is logged rather than blocking the apply.
-      if (selectedResume?.id != null) {
-        applyToJob({ job_id: String(job.id), resume_id: String(selectedResume.id) })
-          .catch((err) => console.error("Application API apply failed:", err));
-      }
-
-      // Sync application to recruiter applicants list in localStorage
-      try {
-        const savedApplicantsStr = localStorage.getItem("skooljobs_applicants");
-        const currentApplicants = savedApplicantsStr ? JSON.parse(savedApplicantsStr) : [];
-        
-        const localProfile = JSON.parse(localStorage.getItem("skooljobs_teacher_data") || "{}");
-        const teacherQualifications = JSON.parse(localStorage.getItem("skooljobs_teacher_qualifications") || "[]");
-        const highestQual =
-          teacherQualifications[0]?.degree ||
-          localProfile.highestQualificationOne ||
-          teacherProfile?.highestQualification1 ||
-          "";
-
-        const snapshot = applicantSnapshot(teacherProfile, { displayName, currentUser });
-        const newApplicant = {
-          id: Date.now(),
-          name: `${localProfile.firstName || teacherProfile?.firstName || ""} ${localProfile.lastName || teacherProfile?.lastName || ""}`.trim() || displayName,
-          subject: job.skill || teacherProfile?.mainSubject || "",
-          experience: experienceYears(snapshot.experiences),
-          status: "Applied",
-          avatar: localProfile.profilePhoto || avatarUrl || "",
-          jobTitle: job.role,
-          qualification: snapshot.highestDegree || highestQual,
-          jobId: job.id,
-          saved: false,
-          candidateId: currentUser.id,
-          // The applicant's real details for the school (no API lets a school read a profile yet).
-          profile: snapshot,
-        };
-
-        localStorage.setItem("skooljobs_applicants", JSON.stringify([newApplicant, ...currentApplicants]));
-      } catch (err) {
-        console.error("Error syncing application:", err);
-      }
+  /**
+   * POST /applications { job_id, resume_id } with the selected resume (from the profile).
+   * 202: stored a moment later, so the job shows as applied straight away and the list
+   * reloads shortly after.
+   */
+  const handleApply = async (job) => {
+    if (appliedJobs.some((item) => String(item.id) === String(job.id))) return;
+    if (!UUID_PATTERN.test(String(job.id))) {
+      alert("This is a sample job and can't be applied to.");
+      return;
     }
+    const resume = UUID_PATTERN.test(String(selectedResume?.id)) ? selectedResume : backendResumes[0];
+    if (!resume) {
+      alert("Add a resume to your profile before applying.");
+      navigate("/teacher/profile?section=resume");
+      return;
+    }
+    try {
+      await applyToJob({ job_id: String(job.id), resume_id: String(resume.id) });
+    } catch (error) {
+      console.error("Application API apply failed:", error);
+      const message = error?.response?.data?.message;
+      alert(message ? `Couldn't apply: ${message}` : "Couldn't send your application. Please try again.");
+      return;
+    }
+    patchApplications((prev) => [
+      {
+        application_id: null,
+        job_id: String(job.id),
+        teacher_user_id: String(currentUser.id),
+        status: "submitted",
+        applied_date: new Date().toISOString(),
+        resume_id: String(resume.id),
+      },
+      ...prev,
+    ]);
+    refreshApplications(2000);
+    addActivity(`Applied for ${job.role} at ${job.school}`, "apply");
+    shareWithSchoolLocally(job);
+  };
+
+  /**
+   * Temporary: the school's applicant list still reads the teacher's details from this
+   * browser ("skooljobs_applicants"), because the teacher profile service can't yet return
+   * a teacher's profile to a school (POST /teachers/batch is in the contract, not the
+   * service). Remove once the school pages read applications + /teachers/batch.
+   */
+  const shareWithSchoolLocally = (job) => {
+    try {
+      const current = JSON.parse(localStorage.getItem("skooljobs_applicants") || "[]");
+      const snapshot = applicantSnapshot(teacherProfile, { displayName, currentUser });
+      const entry = {
+        id: Date.now(),
+        name: snapshot.name || displayName,
+        subject: job.skill || teacherProfile?.mainSubject || "",
+        experience: experienceYears(snapshot.experiences),
+        status: "Applied",
+        avatar: avatarUrl || "",
+        jobTitle: job.role,
+        qualification: snapshot.highestDegree || teacherProfile?.highestQualification1 || "",
+        jobId: job.id,
+        saved: false,
+        candidateId: currentUser.id,
+        profile: snapshot,
+      };
+      localStorage.setItem("skooljobs_applicants", JSON.stringify([entry, ...current]));
+    } catch (error) {
+      console.error("Error sharing the application locally:", error);
+    }
+  };
+
+  /** POST /applications/withdraw; true when the service accepted it. */
+  const handleWithdraw = async (job) => {
+    if (!job.applicationId) {
+      alert("Your application is still being saved. Please try again in a moment.");
+      refreshApplications();
+      return false;
+    }
+    try {
+      await withdrawApplication(job.applicationId);
+    } catch (error) {
+      console.error("Application API withdraw failed:", error);
+      const message = error?.response?.data?.message;
+      alert(message ? `Couldn't withdraw: ${message}` : "Could not withdraw the application. Please try again.");
+      return false;
+    }
+    patchApplications((prev) =>
+      prev.map((a) => (a.application_id === job.applicationId ? { ...a, status: "withdrawn" } : a)),
+    );
+    refreshApplications(2000);
+    addActivity(`Withdrew application for ${job.role} at ${job.school}`, "withdraw");
+    return true;
   };
 
   // Backend-sync for the savedJobs section. The TeacherEntity.savedJobs
@@ -338,7 +468,10 @@ const TeacherLayout = () => {
     profileImage,
     setProfileImage,
     appliedJobs,
-    setAppliedJobs,
+    applicationsStatus,
+    refreshApplications,
+    handleWithdraw,
+    myInterviews,
     savedJobs,
     setSavedJobs,
     activities,
@@ -367,10 +500,11 @@ const TeacherLayout = () => {
     <div className={styles.page}>
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
+          <BrandLogo onDark height={44} className={styles.brandLogo} />
           <div className={styles.profileCard}>
             <div className={styles.profileRow}>
               {avatarUrl ? (
-                <img src={avatarUrl} alt="profile" className={styles.profileAvatar} />
+                <DocumentImage src={avatarUrl} alt="profile" className={styles.profileAvatar} />
               ) : (
                 <span className={`${styles.profileAvatar} ${styles.profileInitials}`} aria-hidden="true">
                   {initials}
@@ -489,6 +623,7 @@ const TeacherLayout = () => {
         <main className={styles.main}>
           <div className={styles.mobileNavWrap}>
             <div className={styles.mobileNavBar}>
+              <BrandLogo height={30} className={styles.mobileNavLogo} />
               <span className={styles.mobileNavTitle}>
                 {[...navItems, { label: "Settings", path: "/teacher/settings" }].find(
                   (item) => item.path === location.pathname,

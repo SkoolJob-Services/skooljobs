@@ -8,6 +8,7 @@ const AVATAR_FALLBACK = {
   color: "var(--color-primary)",
 };
 import styles from "./styles/topbar.module.css";
+import { DocumentImage } from "./DocumentImage";
 
 const Topbar = ({
   title = "Teacher Dashboard",
@@ -67,7 +68,7 @@ const Topbar = ({
             <Settings size={18} />
           </button>
           {profilePhoto ? (
-            <img src={profilePhoto} alt="profile" className={styles.profilePhoto} />
+            <DocumentImage src={profilePhoto} alt="profile" className={styles.profilePhoto} />
           ) : (
             <span className={styles.profilePhoto} aria-hidden="true" style={AVATAR_FALLBACK}>
               <UserRound size={18} />

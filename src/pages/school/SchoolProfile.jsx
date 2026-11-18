@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 import { profileSections } from "../../lib/schooldata";
 import profileOptions from "../../../dropdown/School_module/profile.json";
-import { Button, Input, Select } from "@cloudstrytech/ui-components";
+import { Button, Input, Select, useSnackbar } from "@cloudstrytech/ui-components";
 import { toOptions } from "../../lib/selectOptions";
 import styles from "./styles/SchoolProfile.module.css";
 import {
@@ -11,14 +11,18 @@ import {
   updateSchoolProfile,
 } from "../../services/schoolProfileService";
 import { useImageUpload } from "../../lib/useImageUpload";
+import { DOCUMENT_TYPES, uploadDocumentRef } from "../../services/documentService";
+import { DocumentImage } from "../../components/DocumentImage";
+import { rememberSavedSchoolProfile, withRecentSave } from "../../features/school/ownSchoolProfile";
 import { validateFields } from "../../lib/textValidation";
 import {
   ArrowLeft,
   BriefcaseBusiness,
   Building2,
+  Calendar,
   Camera,
   CreditCard,
-  Globe,
+  Eye,
   Heart,
   ImageIcon,
   LayoutDashboard,
@@ -77,6 +81,7 @@ const sidebarItems = [
     route: "/school/dashboard",
   },
   { id: "companyProfile", label: "Institute Profile", icon: Building2 },
+  { id: "viewProfile", label: "View Profile", icon: Eye, route: "/school/view-profile" },
   {
     id: "postJob",
     label: "Post a New Job",
@@ -95,6 +100,7 @@ const sidebarItems = [
     icon: Users,
     route: "/school/all-applicants",
   },
+  { id: "interviews", label: "Interviews", icon: Calendar, route: "/school/interviews" },
   {
     id: "savedCandidates",
     label: "Saved Candidates",
@@ -140,6 +146,7 @@ const Field = ({ label, required, children }) => (
 const SchoolProfile = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const snackbar = useSnackbar();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeSection = searchParams.get("section") || "basic";
   const setActiveSection = (id) =>
@@ -155,6 +162,9 @@ const SchoolProfile = () => {
   const [logoImage, setLogoImage] = useState(null);
   const [coverImage, setCoverImage] = useState(null);
   const [galleryImages, setGalleryImages] = useState([]);
+  // Logo, cover and gallery are stored in document-management; these hold "document:<id>" refs.
+  const [imageUploading, setImageUploading] = useState({ logo: false, cover: false, gallery: false });
+  const [imageUploadError, setImageUploadError] = useState({ logo: null, cover: null, gallery: null });
   const {
     error: logoImageError,
     validating: logoImageValidating,
@@ -188,17 +198,11 @@ const SchoolProfile = () => {
     }
   }, []);
 
-  const schoolName =
-    currentUser.companyName ||
-    currentUser.schoolName ||
-    currentUser.firstName ||
-    "Som Lalit School";
   const [formData, setFormData] = useState({
-    firstName: currentUser.firstName || "Som Lalit School",
-    lastName: currentUser.lastName || "Jankara Nagar, Ahmedabad",
-    companyName: currentUser.companyName || "Som Lalit School",
-    email: currentUser.email || "ms@somlalit.com",
-    profileUrl: "https://skooljobs.com/employer/som-lalit-school",
+    firstName: currentUser.firstName || "",
+    lastName: currentUser.lastName || "",
+    companyName: currentUser.companyName || currentUser.schoolName || "",
+    email: currentUser.email || "",
     publicView: "Yes",
     phone: currentUser.phone || "",
     website: "",
@@ -208,7 +212,7 @@ const SchoolProfile = () => {
     studentsPerClass: "",
     schoolTimings: "",
     busService: "",
-    establishedYear: "2000",
+    establishedYear: "",
     industry: "Schools & Institutions",
     schoolType: "",
     affiliationStatus: "",
@@ -228,11 +232,13 @@ const SchoolProfile = () => {
     addressLane1: "",
     addressLane2: "",
   });
+  // Name shown in the sidebar: what is typed, else the saved name.
+  const schoolName = formData.companyName || currentUser.companyName || currentUser.schoolName || "Your school";
 
   // The caller's own school comes from the server (GET /school-profiles/me),
   // never from localStorage. Save updates that school; schools are only created
   // by a platform-admin invitation, so there is no create from this page.
-  const [, setSchoolProfileId] = useState(null);
+  const [loadError, setLoadError] = useState(false);
   const [loadedProfile, setLoadedProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   // Schools come only from invitations: no own school yet means "being set up".
@@ -241,52 +247,70 @@ const SchoolProfile = () => {
   // Ref guard: blocks a second submit before the `saving` re-render lands.
   const savingRef = useRef(false);
 
+  /** SchoolProfile (contract) → this form, its images and the loaded copy (Cancel goes back to it). */
+  const applyProfile = (data) => {
+    setLoadedProfile(data);
+    const has = (v) => v !== undefined && v !== null && v !== "";
+    const yesNo = (v) => (v === true ? "Yes" : v === false ? "No" : undefined);
+    const mapped = {
+      companyName: data.schoolName,
+      sector: data.sector,
+      schoolType: data.schoolType,
+      affiliationStatus: data.affiliationStatus,
+      board: BOARD_FORM_VALUES[data.board] || data.board,
+      medium: data.medium,
+      level: data.level,
+      industry: data.industry,
+      aboutInstitute: data.description,
+      establishedYear: has(data.establishedYear) ? String(data.establishedYear) : undefined,
+      totalStudents: data.totalStudents,
+      studentsPerClass: data.studentsPerClass,
+      schoolTimings: data.schoolTimings,
+      busService: yesNo(data.busService),
+      publicView: yesNo(data.publicView),
+      email: data.contact?.email,
+      phone: data.contact?.phone,
+      website: data.contact?.website,
+      alternateEmail: data.contact?.alternateEmail,
+      postalCode: data.address?.pinCode,
+      city: data.address?.city,
+      state: data.address?.state,
+      country: data.address?.country,
+      area: data.address?.area,
+      addressLane1: data.address?.addressLine1,
+      addressLane2: data.address?.addressLine2,
+      linkedin: data.socialLinks?.linkedin,
+      facebook: data.socialLinks?.facebook,
+      twitter: data.socialLinks?.twitter,
+    };
+    setFormData((prev) => {
+      const next = { ...prev };
+      Object.entries(mapped).forEach(([key, value]) => {
+        if (has(value)) next[key] = value;
+      });
+      return next;
+    });
+    setLogoImage(has(data.logoUrl) ? data.logoUrl : null);
+    setCoverImage(has(data.coverImageUrl) ? data.coverImageUrl : null);
+    setGalleryImages(Array.isArray(data.galleryImageUrls) ? data.galleryImageUrls.filter(has) : []);
+  };
+
   useEffect(() => {
     let cancelled = false;
     getMySchoolProfile()
       .then(({ data }) => {
         if (cancelled || !data) return;
-        setLoadedProfile(data);
-        const has = (v) => v !== undefined && v !== null && v !== "";
-        const mapped = {
-          companyName: data.schoolName,
-          sector: data.sector,
-          board: BOARD_FORM_VALUES[data.board] || data.board,
-          medium: data.medium,
-          level: data.level,
-          industry: data.industry,
-          aboutInstitute: data.description,
-          establishedYear: has(data.establishedYear)
-            ? String(data.establishedYear)
-            : undefined,
-          email: data.contact?.email,
-          phone: data.contact?.phone,
-          website: data.contact?.website,
-          postalCode: data.address?.pinCode,
-          city: data.address?.city,
-          state: data.address?.state,
-          country: data.address?.country,
-          linkedin: data.socialLinks?.linkedin,
-          facebook: data.socialLinks?.facebook,
-          twitter: data.socialLinks?.twitter,
-        };
-        setFormData((prev) => {
-          const next = { ...prev };
-          Object.entries(mapped).forEach(([key, value]) => {
-            if (has(value)) next[key] = value;
-          });
-          return next;
-        });
+        // A save from a moment ago may not be stored yet (202): show it on top.
+        applyProfile(withRecentSave(data));
       })
       .catch((error) => {
         if (cancelled) return;
         if (error?.response?.status === 404) {
           // No school yet: it is claimed from the invitation shortly after signup.
-          setSchoolProfileId(null);
           setSchoolPending(true);
         } else {
           console.error("Failed to load school profile:", error);
-          alert("Failed to load profile.");
+          setLoadError(true);
         }
       })
       .finally(() => {
@@ -298,7 +322,6 @@ const SchoolProfile = () => {
     };
   }, []);
 
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -307,12 +330,44 @@ const SchoolProfile = () => {
   const setField = (name, value) =>
     setFormData((prev) => ({ ...prev, [name]: value }));
 
+  // Checked files are uploaded to document-management straight away; "Save" then stores
+  // their references in the profile (logoUrl, coverImageUrl, galleryImageUrls).
+  const uploadSchoolImages = async (kind, files, documentType) => {
+    const ownerId = loadedProfile?.schoolProfileId;
+    if (!ownerId) {
+      setImageUploadError((p) => ({ ...p, [kind]: "Your school is still being set up. Please try again in a moment." }));
+      return [];
+    }
+    setImageUploadError((p) => ({ ...p, [kind]: null }));
+    setImageUploading((p) => ({ ...p, [kind]: true }));
+    try {
+      const refs = [];
+      for (const file of files) refs.push(await uploadDocumentRef({ ownerId, documentType, file }));
+      return refs;
+    } catch (error) {
+      console.error(`Failed to upload ${kind} image:`, error);
+      setImageUploadError((p) => ({ ...p, [kind]: "Couldn't upload the image. Please try again." }));
+      return [];
+    } finally {
+      setImageUploading((p) => ({ ...p, [kind]: false }));
+    }
+  };
+
+  /** Keeps only the files that passed the image checks (useImageUpload returns blob URLs for those). */
+  const checkedFiles = (files, urls) => {
+    urls.forEach((url) => URL.revokeObjectURL(url));
+    return urls.length === files.length ? files : null;
+  };
+
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
     const url = await validateLogoImage(file);
-    if (url) setLogoImage(url);
+    if (!url) return;
+    URL.revokeObjectURL(url);
+    const [ref] = await uploadSchoolImages("logo", [file], DOCUMENT_TYPES.SCHOOL_LOGO);
+    if (ref) setLogoImage(ref);
   };
 
   const handleCoverUpload = async (e) => {
@@ -320,15 +375,26 @@ const SchoolProfile = () => {
     e.target.value = "";
     if (!file) return;
     const url = await validateCoverImage(file);
-    if (url) setCoverImage(url);
+    if (!url) return;
+    URL.revokeObjectURL(url);
+    const [ref] = await uploadSchoolImages("cover", [file], DOCUMENT_TYPES.SCHOOL_COVER_PHOTO);
+    if (ref) setCoverImage(ref);
   };
 
   const handleGalleryUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files || []).slice(0, Math.max(0, 8 - galleryImages.length));
     e.target.value = "";
-    const urls = await validateGalleryImages(files);
-    if (urls.length > 0) {
-      setGalleryImages((prev) => [...prev, ...urls].slice(0, 8));
+    if (files.length === 0) return;
+    // Validate one by one so only the files that pass are uploaded.
+    const passed = [];
+    for (const file of files) {
+      const urls = await validateGalleryImages([file]);
+      if (checkedFiles([file], urls)) passed.push(file);
+    }
+    if (passed.length === 0) return;
+    const refs = await uploadSchoolImages("gallery", passed, DOCUMENT_TYPES.SCHOOL_GALLERY_PHOTO);
+    if (refs.length > 0) {
+      setGalleryImages((prev) => [...prev, ...refs].slice(0, 8));
     }
   };
 
@@ -341,90 +407,92 @@ const SchoolProfile = () => {
     await signOut();
     navigate("/login", { replace: true });
   };
+  /** First problem in the whole form (every section is saved together): [section, message]. */
+  const firstProblem = () => {
+    if (!formData.companyName?.trim()) return ["basic", "Institute Name is required."];
+    if (!formData.sector) return ["basic", "Sector is required."];
+    const { valid, errors } = validateFields({ aboutInstitute: formData.aboutInstitute });
+    if (!valid) return ["basic", Object.values(errors)[0]];
+    if (!formData.level) return ["other", "Level is required as it directly affects job matching."];
+    if (!formData.postalCode) return ["address", "Postal Code is required for job location matching."];
+    return null;
+  };
+
+  const yesNoToBoolean = (value) => (value === "No" ? false : value ? true : null);
+
+  /** This form → SchoolProfile (contract). Fields left empty are kept as they are by the service. */
+  const formToPayload = () => ({
+    schoolProfileId: loadedProfile?.schoolProfileId,
+    schoolName: formData.companyName.trim(),
+    sector: formData.sector,
+    schoolType: formData.schoolType || loadedProfile?.schoolType || null,
+    affiliationStatus: formData.affiliationStatus || loadedProfile?.affiliationStatus || null,
+    board: BOARD_API_VALUES[formData.board] || formData.board || null,
+    medium: formData.medium || null,
+    level: formData.level || null,
+    industry: formData.industry || null,
+    establishedYear: formData.establishedYear ? Number(formData.establishedYear) : null,
+    description: formData.aboutInstitute || null,
+    totalStudents: formData.totalStudents || null,
+    studentsPerClass: formData.studentsPerClass || null,
+    schoolTimings: formData.schoolTimings || null,
+    busService: yesNoToBoolean(formData.busService),
+    publicView: yesNoToBoolean(formData.publicView),
+    logoUrl: logoImage || null,
+    coverImageUrl: coverImage || null,
+    galleryImageUrls: galleryImages,
+    contact: {
+      email: formData.email || null,
+      phone: formData.phone || null,
+      website: formData.website || null,
+      alternateEmail: formData.alternateEmail || null,
+    },
+    address: {
+      pinCode: formData.postalCode || null,
+      city: formData.city || null,
+      state: formData.state || null,
+      country: formData.country || null,
+      area: formData.area || null,
+      addressLine1: formData.addressLane1 || null,
+      addressLine2: formData.addressLane2 || null,
+    },
+    socialLinks: {
+      linkedin: formData.linkedin || null,
+      facebook: formData.facebook || null,
+      twitter: formData.twitter || null,
+    },
+  });
+
+  const anyUploadRunning = imageUploading.logo || imageUploading.cover || imageUploading.gallery;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (savingRef.current) return;
-    if (activeSection === "address" && !formData.postalCode) {
-      alert("Postal Code is required for job location matching.");
+    if (savingRef.current || profileLoading) return;
+    if (!loadedProfile?.schoolProfileId) {
+      alert("Your school is still being set up from your invitation. Please refresh in a moment.");
       return;
     }
-    if (activeSection === "other" && !formData.level) {
-      alert("Level is required as it directly affects job matching.");
+    if (anyUploadRunning) {
+      alert("Please wait until the images have finished uploading.");
       return;
     }
-    const { valid, errors } = validateFields({
-      aboutInstitute: formData.aboutInstitute,
-    });
-    if (!valid) {
-      alert(Object.values(errors)[0]);
-      return;
-    }
-
-    if (currentUser.id === undefined || currentUser.id === null || currentUser.id === "") {
-      alert("Your session is missing a user id. Please log in again before saving.");
+    const problem = firstProblem();
+    if (problem) {
+      setActiveSection(problem[0]);
+      alert(problem[1]);
       return;
     }
 
-    const payload = {
-      schoolAdminId: String(currentUser.id),
-      schoolName: formData.companyName,
-      sector: formData.sector,
-      // No form inputs exist for these yet: keep backend values on edit,
-      // fall back to the existing create-time defaults otherwise.
-      schoolType: loadedProfile?.schoolType ?? "Private",
-      affiliationStatus: loadedProfile?.affiliationStatus ?? "Affiliated",
-
-      board: BOARD_API_VALUES[formData.board] || formData.board,
-      medium: formData.medium,
-      level: formData.level,
-      industry: formData.industry,
-      establishedYear: formData.establishedYear
-        ? Number(formData.establishedYear)
-        : null,
-      description: formData.aboutInstitute,
-
-      contact: {
-        email: formData.email,
-        phone: formData.phone,
-        website: formData.website,
-      },
-
-      address: {
-        pinCode: formData.postalCode,
-        city: formData.city,
-        state: formData.state,
-        country: formData.country,
-      },
-
-      socialLinks: {
-        linkedin: formData.linkedin,
-        facebook: formData.facebook,
-        twitter: formData.twitter,
-        instagram: "",
-      },
-    };
-    if (profileLoading) return;
+    const payload = formToPayload();
     savingRef.current = true;
     setSaving(true);
     try {
-      // UPDATE the caller's own school: POST /school-profiles/update → CommandAcceptedResponse.
-      const existingId = loadedProfile?.schoolProfileId;
-      if (!existingId) {
-        alert("Your school is still being set up from your invitation. Please refresh in a moment.");
-        return;
-      }
-      const response = await updateSchoolProfile({ ...payload, schoolProfileId: existingId });
-      const newSchoolProfileId = response?.data?.schoolProfileId;
-      if (!newSchoolProfileId) {
-        console.error("Update response has no schoolProfileId:", response?.data);
-        alert(
-          "Profile was submitted, but the server did not return a profile id. Please contact support before saving again.",
-        );
-        return;
-      }
-      setSchoolProfileId(newSchoolProfileId);
-      setLoadedProfile({ ...payload, schoolProfileId: newSchoolProfileId });
-      alert(response?.data?.message || "Profile saved successfully!");
+      // POST /school-profiles/update → 202: stored a moment later by the service.
+      await updateSchoolProfile(payload);
+      rememberSavedSchoolProfile({ ...loadedProfile, ...payload });
+      setLoadedProfile({ ...loadedProfile, ...payload });
+      snackbar.show({ message: "Profile saved.", type: "success" });
+      navigate("/school/view-profile");
     } catch (error) {
       console.error("API Error:", error);
       // ErrorResponse { code, message } from the API, when present.
@@ -434,6 +502,12 @@ const SchoolProfile = () => {
       savingRef.current = false;
       setSaving(false);
     }
+  };
+
+  /** Discards the edits (back to the loaded profile) and leaves the editor. */
+  const handleCancel = () => {
+    if (loadedProfile) applyProfile(loadedProfile);
+    navigate("/school/view-profile");
   };
 
   // Profile completion calculation
@@ -468,7 +542,7 @@ const SchoolProfile = () => {
         <div className={styles.logoCol}>
           <div className={styles.logoBox}>
             {logoImage ? (
-              <img src={logoImage} alt="logo" className={styles.logoImg} />
+              <DocumentImage src={logoImage} alt="logo" className={styles.logoImg} />
             ) : (
               <Building2 size={32} className={styles.logoPlaceholderIcon} />
             )}
@@ -477,38 +551,44 @@ const SchoolProfile = () => {
             <Upload size={13} />{" "}
             {logoImageValidating
               ? "Checking..."
-              : logoImage
+              : imageUploading.logo
+                ? "Uploading..."
+                : logoImage
                 ? "Change Logo"
                 : "Upload Logo"}
             <input
               type="file"
               hidden
               accept="image/*"
-              disabled={logoImageValidating}
+              disabled={logoImageValidating || imageUploading.logo}
               onChange={handleLogoUpload}
             />
           </label>
           <p className={styles.logoHint}>Recommended: 200×200px</p>
-          {logoImageError && <p className={styles.errorText}>{logoImageError}</p>}
+          {(logoImageError || imageUploadError.logo) && (
+            <p className={styles.errorText}>{logoImageError || imageUploadError.logo}</p>
+          )}
         </div>
 
         {/* Cover photo */}
         <div className={styles.coverCol}>
           <label className={styles.uploadCoverLabel}>
             <ImageIcon size={16} />{" "}
-            {coverImageValidating ? "Checking..." : "Upload Cover Photo"}
+            {coverImageValidating ? "Checking..." : imageUploading.cover ? "Uploading..." : "Upload Cover Photo"}
             <input
               type="file"
               hidden
               accept="image/*"
-              disabled={coverImageValidating}
+              disabled={coverImageValidating || imageUploading.cover}
               onChange={handleCoverUpload}
             />
           </label>
-          {coverImageError && <p className={styles.errorText}>{coverImageError}</p>}
+          {(coverImageError || imageUploadError.cover) && (
+            <p className={styles.errorText}>{coverImageError || imageUploadError.cover}</p>
+          )}
           {coverImage && (
             <div className={styles.coverPreviewWrap}>
-              <img src={coverImage} alt="cover" className={styles.coverPreviewImg} />
+              <DocumentImage src={coverImage} alt="cover" className={styles.coverPreviewImg} />
             </div>
           )}
         </div>
@@ -559,20 +639,6 @@ const SchoolProfile = () => {
             }
           />
         </Field>
-      </div>
-
-      {/* Profile URL */}
-      <div>
-        <label className={labelClass}>Profile URL</label>
-        <div className={styles.profileUrlRow}>
-          <Globe size={15} className={styles.profileUrlIcon} />
-          <span className={styles.profileUrlText}>
-            {formData.profileUrl}
-          </span>
-          <Button variant="outlined" color type="button">
-            Edit
-          </Button>
-        </div>
       </div>
 
       <div className={styles.fieldGrid}>
@@ -718,18 +784,22 @@ const SchoolProfile = () => {
         </p>
         <label className={styles.uploadPhotosLabel}>
           <Camera size={16} />{" "}
-          {galleryImagesValidating ? "Checking Photos..." : "Upload Photos"}
+          {galleryImagesValidating
+            ? "Checking Photos..."
+            : imageUploading.gallery
+              ? "Uploading Photos..."
+              : "Upload Photos"}
           <input
             type="file"
             hidden
             accept="image/*"
             multiple
-            disabled={galleryImagesValidating}
+            disabled={galleryImagesValidating || imageUploading.gallery || galleryImages.length >= 8}
             onChange={handleGalleryUpload}
           />
         </label>
-        {galleryImagesError && (
-          <p className={styles.errorText}>{galleryImagesError}</p>
+        {(galleryImagesError || imageUploadError.gallery) && (
+          <p className={styles.errorText}>{galleryImagesError || imageUploadError.gallery}</p>
         )}
         {galleryImages.length > 0 && (
           <div className={styles.galleryGrid}>
@@ -738,7 +808,7 @@ const SchoolProfile = () => {
                 key={i}
                 className={styles.galleryItem}
               >
-                <img
+                <DocumentImage
                   src={url}
                   alt={`gallery-${i}`}
                   className={styles.galleryImg}
@@ -1183,7 +1253,7 @@ const SchoolProfile = () => {
       <div className={styles.sidebarHeader}>
         <div className={styles.sidebarLogoBox}>
           {logoImage ? (
-            <img
+            <DocumentImage
               src={logoImage}
               alt="logo"
               className={styles.sidebarLogoImg}
@@ -1256,6 +1326,17 @@ const SchoolProfile = () => {
       </div>
     </div>
   );
+
+  if (loadError) {
+    return (
+      <div className={styles.pageWrap} role="alert">
+        <p>Couldn't load your school profile. Please check your connection and try again.</p>
+        <Button type="button" onClick={() => window.location.reload()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
 
   if (schoolPending) {
     return (
@@ -1347,14 +1428,14 @@ const SchoolProfile = () => {
             {renderActiveSection()}
 
             <div className={styles.formActions}>
-              <Button variant="outlined" type="button">
+              <Button variant="outlined" type="button" onClick={handleCancel} disabled={saving}>
                 Cancel
               </Button>
               <Button
                 type="submit"
                 variant="filled"
                 startIcon="saveIcon"
-                disabled={profileLoading || saving}
+                disabled={profileLoading || saving || loadError || anyUploadRunning}
               >
                 {profileLoading ? "Loading..." : saving ? "Saving..." : "Save Changes"}
               </Button>

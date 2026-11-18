@@ -1,85 +1,22 @@
-import { useEffect, useState } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { Calendar, Briefcase, CheckCircle2 } from "lucide-react";
 import styles from "./styles/TeacherApplications.module.css";
 import { Button } from "@cloudstrytech/ui-components";
-import { listApplications, withdrawApplication } from "../../services/applicationService";
 
-// Application API status -> label used by the existing status badges.
-const STATUS_LABELS = {
-  submitted: "Under Review",
-  admin_approved: "Under Review",
-  admin_rejected: "Rejected",
-  shortlisted: "Shortlisted",
-  rejected_by_school: "Rejected",
-  hired: "Hired",
-  withdrawn: "Withdrawn",
-};
-
+/**
+ * The teacher's applications from the application service (TeacherLayout loads them:
+ * POST /applications/search with teacher_user_id). Withdraw is POST /applications/withdraw.
+ */
 const TeacherApplications = () => {
   const navigate = useNavigate();
-  const { appliedJobs, setAppliedJobs, addActivity } = useOutletContext();
+  const { appliedJobs, applicationsStatus, refreshApplications, handleWithdraw } = useOutletContext();
 
-  // Backend applications keyed by job_id, merged over the local list.
-  const [backendByJobId, setBackendByJobId] = useState({});
-
-  useEffect(() => {
-    let currentUser = {};
-    try { currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}"); } catch { /* ignore */ }
-    if (currentUser.id == null) return undefined;
-
-    let cancelled = false;
-    listApplications({ teacher_user_id: String(currentUser.id) })
-      .then((res) => {
-        if (cancelled) return;
-        const byJob = {};
-        (res.data?.data || []).forEach((app) => {
-          if (app.job_id) byJob[String(app.job_id)] = app;
-        });
-        setBackendByJobId(byJob);
-      })
-      .catch((err) => console.error("Application API list failed:", err));
-    return () => { cancelled = true; };
-  }, []);
-
-  const handleWithdraw = async (jobId, jobRole, school) => {
-    if (window.confirm(`Are you sure you want to withdraw your application for "${jobRole}" at ${school}?`)) {
-      const applicationId = backendByJobId[String(jobId)]?.application_id;
-      if (applicationId) {
-        try {
-          await withdrawApplication(applicationId);
-        } catch (err) {
-          console.error("Application API withdraw failed:", err);
-          alert("Could not withdraw the application. Please try again.");
-          return;
-        }
-      }
-
-      setAppliedJobs(prev => prev.filter(j => j.id !== jobId));
-      if (addActivity) {
-        addActivity(`Withdrew application for ${jobRole} at ${school}`, "withdraw");
-      }
-
-      // Sync withdrawal with recruiter's applicants database in localStorage
-      try {
-        const savedApplicantsStr = localStorage.getItem("skooljobs_applicants");
-        if (savedApplicantsStr) {
-          const currentApplicants = JSON.parse(savedApplicantsStr);
-          const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
-          const teacherProfile = JSON.parse(localStorage.getItem("skooljobs_teacher_data") || "{}");
-          const candidateName = `${teacherProfile.firstName || currentUser.firstName || ""} ${teacherProfile.lastName || currentUser.lastName || ""}`.trim();
-
-          const updatedApplicants = currentApplicants.filter(
-            (a) => !(a.jobTitle === jobRole && (String(a.candidateId) === String(currentUser.id) || (candidateName && a.name?.toLowerCase() === candidateName.toLowerCase())))
-          );
-          localStorage.setItem("skooljobs_applicants", JSON.stringify(updatedApplicants));
-        }
-      } catch (err) {
-        console.error("Error syncing withdrawal:", err);
-      }
-
-      alert("Application withdrawn successfully.");
+  const withdraw = async (job) => {
+    const role = job.role || job.title;
+    if (!window.confirm(`Are you sure you want to withdraw your application for "${role}" at ${job.school || "this school"}?`)) {
+      return;
     }
+    if (await handleWithdraw(job)) alert("Application withdrawn.");
   };
 
   return (
@@ -91,7 +28,18 @@ const TeacherApplications = () => {
         </p>
       </div>
 
-      {appliedJobs.length === 0 ? (
+      {applicationsStatus === "error" && (
+        <p className={styles.subtext} role="alert">
+          Couldn't load your applications.{" "}
+          <Button variant="text" onClick={() => refreshApplications()}>
+            Try again
+          </Button>
+        </p>
+      )}
+
+      {applicationsStatus === "loading" && appliedJobs.length === 0 ? (
+        <p className={styles.subtext}>Loading your applications…</p>
+      ) : appliedJobs.length === 0 ? (
         <div className={styles.emptyState}>
           <Briefcase size={40} className={styles.emptyIcon} />
           <p>You haven't submitted any job applications yet.</p>
@@ -118,10 +66,10 @@ const TeacherApplications = () => {
               {appliedJobs.map((job) => {
                 const displayDate = job.appliedDate
                   ? new Date(job.appliedDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                  : "05 Jun 2026";
-
-                const backendStatus = backendByJobId[String(job.id)]?.status;
-                const status = STATUS_LABELS[backendStatus] || job.status || "Under Review";
+                  : "—";
+                const status = job.status || "Under Review";
+                // Only an open application can be withdrawn.
+                const canWithdraw = !["Hired", "Rejected", "Withdrawn"].includes(status);
 
                 return (
                   <tr key={job.id} className={styles.row}>
@@ -133,7 +81,7 @@ const TeacherApplications = () => {
                         </span>
                       </div>
                     </td>
-                    <td className={styles.tdSchool}>{job.school || "Sunrise Public School"}</td>
+                    <td className={styles.tdSchool}>{job.school || "—"}</td>
                     <td className={styles.tdDate}>
                       <Calendar size={13} className={styles.dateIcon} />
                       {displayDate}
@@ -158,20 +106,17 @@ const TeacherApplications = () => {
                           View Job
                         </Button>
 
-                        <Button
-                          variant="text"
-                          startIcon="deleteIcon"
-                          onClick={() =>
-                            handleWithdraw(
-                              job.id,
-                              job.role || job.title,
-                              job.school
-                            )
-                          }
-                          className={styles.withdrawButton}
-                        >
-                          Withdraw
-                        </Button>                      </div>
+                        {canWithdraw && (
+                          <Button
+                            variant="text"
+                            startIcon="deleteIcon"
+                            onClick={() => withdraw(job)}
+                            className={styles.withdrawButton}
+                          >
+                            Withdraw
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

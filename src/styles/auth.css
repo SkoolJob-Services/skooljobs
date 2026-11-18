@@ -196,3 +196,175 @@
   cursor: default;
   opacity: 0.6;
 }
+
+/* ---------- PIN login (features/pin) — from cattlemgmtapp, SkoolJobs palette ---------- */
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--auth-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.link-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.pin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pin-field__box {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 14px 12px;
+  border: 1px solid var(--color-border, #d1dae5);
+  border-radius: 14px;
+  background: #fff;
+  cursor: text;
+}
+.pin-field__box:focus-within {
+  border-color: var(--auth-primary);
+  box-shadow: 0 0 0 3px var(--color-light, #e7f6ff);
+}
+.pin-field--error .pin-field__box {
+  border-color: var(--auth-error);
+}
+/* The real input covers the dots, invisible, so typing, paste and the numeric keypad work. */
+.pin-field__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: 0;
+  font-size: 16px; /* no zoom on iOS */
+  cursor: text;
+}
+.pin-field__dots {
+  display: flex;
+  gap: 14px;
+}
+.pin-field__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border, #d1dae5);
+  transition: background 0.1s, border-color 0.1s;
+}
+.pin-field__dot.is-filled {
+  background: var(--auth-primary);
+  border-color: var(--auth-primary);
+}
+.pin-field__box:focus-within .pin-field__dot.is-next {
+  border-color: var(--auth-primary);
+}
+
+.account-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.account-picker__option {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, #d1dae5);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--auth-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.account-picker__option.is-selected {
+  border-color: var(--auth-primary);
+  background: var(--color-light, #e7f6ff);
+  font-weight: 600;
+}
+
+.pin-offer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pin-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--color-border, #d1dae5);
+  border-radius: 14px;
+}
+.pin-setup__title {
+  padding: 0 4px;
+  font-weight: 600;
+}
+.pin-setup__text {
+  margin: -4px 0 0;
+  font-size: 0.875rem;
+  color: var(--auth-muted);
+}
+.pin-setup__skip {
+  align-self: flex-start;
+}
+
+/* Settings → PIN login card (PinSection). */
+.panel.pin-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 20px;
+  border: 1px solid var(--color-border, #d1dae5);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--auth-text);
+}
+.pin-panel .panel__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-primary-text, #15293f);
+}
+.pin-panel .panel__text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--auth-muted);
+}
+.pin-panel .form-stack {
+  max-width: 360px;
+}
+.pin-panel > button,
+.pin-panel .form-actions {
+  align-self: flex-start;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.device-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border, #d1dae5);
+}
+.device-list__meta,
+.device-list__this {
+  font-size: 0.8125rem;
+  color: var(--auth-muted);
+}

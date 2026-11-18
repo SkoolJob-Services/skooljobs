@@ -404,3 +404,17 @@
   background-color: #fef2f2;
   color: #f87171;
 }
+
+/* SkoolJobs logo at the top of the sidebar (BrandLogo onDark). */
+.brandLogo {
+  margin-bottom: 1.25rem;
+  align-self: flex-start;
+}
+
+/* Small logo at the start of the mobile menu bar; the page name follows it. */
+.mobileNavLogo {
+  flex-shrink: 0;
+}
+.mobileNavBar .mobileNavTitle {
+  flex: 1;
+}

@@ -18,7 +18,8 @@
     "test:ci": "vitest run --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml"
   },
   "dependencies": {
-    "@app/signup-api": "^0.0.1-dev.2",
+    "@app/document-api": "^0.0.1-dev.1",
+    "@app/signup-api": "^0.0.1-dev.3",
     "@capacitor/android": "^8.4.0",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",

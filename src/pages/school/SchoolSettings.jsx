@@ -4,7 +4,6 @@ import { Button, Input } from "@cloudstrytech/ui-components";
 
 import {
   HelpCircle,
-  KeyRound,
   Trash2,
   Users,
   ShieldAlert,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import FormField from "../../components/FormField";
 import styles from "./styles/SchoolSettings.module.css";
+import { PinSection } from "../../features/pin/PinSection";
 
 const SchoolSettings = () => {
   const { handleLogout, currentUser } = useOutletContext();
@@ -33,11 +33,8 @@ const SchoolSettings = () => {
   const [deleteOtp, setDeleteOtp] = useState("");
   const [deleteOtpSent, setDeleteOtpSent] = useState(false);
 
-  // Password change state
-  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
-
   // Member Form state (inline card)
-  const [editingMember, setEditingMember] = useState(null); // null or { name, email, phone, memberRole, password }
+  const [editingMember, setEditingMember] = useState(null); // null or { name, email, phone, memberRole }
 
   // OTP Verification state (inline card)
   const [otpState, setOtpState] = useState({
@@ -109,7 +106,6 @@ const SchoolSettings = () => {
         email: formData.email,
         phone: formData.phone,
         memberRole: "Member", // Restricted role
-        password: formData.password,
         schoolEmail: currentUser.email,
         companyName: currentUser.companyName || currentUser.schoolName || currentUser.name || "",
       };
@@ -127,7 +123,6 @@ const SchoolSettings = () => {
         email: formData.email,
         phone: formData.phone,
         memberRole: "Member", // Restricted role
-        ...(formData.password ? { password: formData.password } : {})
       } : m);
       setMembers(updated);
       localStorage.setItem("skooljobs_members", JSON.stringify(updated));
@@ -153,7 +148,6 @@ const SchoolSettings = () => {
         email: currentUser.email,
         phone: currentUser.phone || "9999999999",
         memberRole: "Member", // demoted to Member
-        password: currentUser.password || "password",
         schoolEmail: promotedMember.email,
         companyName: currentUser.companyName || currentUser.schoolName || "",
       };
@@ -166,7 +160,6 @@ const SchoolSettings = () => {
         lastName: promotedMember.name.split(" ").slice(1).join(" "),
         email: promotedMember.email,
         phone: promotedMember.phone,
-        password: promotedMember.password,
         name: promotedMember.name,
         companyName: currentUser.companyName || currentUser.schoolName || "",
         role: "employer",
@@ -187,7 +180,7 @@ const SchoolSettings = () => {
       // 4. Log out session
       localStorage.removeItem("currentUser");
       setOtpState(prev => ({ ...prev, isOpen: false }));
-      alert("Ownership transferred successfully! Logging out. Please log in using the new Admin credentials.");
+      alert("Ownership transferred successfully! Logging out. The new Admin logs in with a one-time code.");
       handleLogout();
       return;
     }
@@ -236,7 +229,7 @@ const SchoolSettings = () => {
               </span>
               <div>
                 <h3 className={styles.sectionTitle}>Team Members</h3>
-                <p className={styles.sectionSubtitle}>Manage login credentials and access levels for your staff (Max 3 members).</p>
+                <p className={styles.sectionSubtitle}>Manage your staff and their access (Max 3 members). Members log in with a one-time code.</p>
               </div>
             </div>
             <Button
@@ -250,7 +243,6 @@ const SchoolSettings = () => {
                   email: "",
                   phone: "",
                   memberRole: "Member",
-                  password: "",
                 });
                 setOtpState((prev) => ({ ...prev, isOpen: false }));
               }}
@@ -344,7 +336,7 @@ const SchoolSettings = () => {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (!editingMember.name || !editingMember.email || !editingMember.phone || (!editingMember.id && !editingMember.password)) {
+              if (!editingMember.name || !editingMember.email || !editingMember.phone) {
                 alert("Please fill in all required fields.");
                 return;
               }
@@ -355,16 +347,16 @@ const SchoolSettings = () => {
             <div>
               <label className={styles.formFieldLabel}>Full Name *</label>
               <Input
-                type="password"
-                required={!editingMember.id}
-                value={editingMember.password || ""}
+                type="text"
+                required
+                value={editingMember.name}
                 onChange={(value) =>
                   setEditingMember((p) => ({
                     ...p,
-                    password: value,
+                    name: value,
                   }))
                 }
-                placeholder={editingMember.id ? "••••••••" : "Enter password"}
+                placeholder="e.g. Ritesh Sharma"
               />
             </div>
             <div>
@@ -385,16 +377,16 @@ const SchoolSettings = () => {
             <div>
               <label className={styles.formFieldLabel}>Mobile Number *</label>
               <Input
-                type="email"
+                type="tel"
                 required
-                value={editingMember.email}
+                value={editingMember.phone}
                 onChange={(value) =>
                   setEditingMember((p) => ({
                     ...p,
-                    email: value,
+                    phone: value,
                   }))
                 }
-                placeholder="e.g. ritesh@school.in"
+                placeholder="e.g. 9876543210"
               />
             </div>
             <div>
@@ -403,23 +395,6 @@ const SchoolSettings = () => {
                 type="text"
                 disabled
                 value="Member"
-              />
-            </div>
-            <div className={styles.formGridFullSpan}>
-              <label className={styles.formFieldLabel}>
-                {editingMember.id ? "New Password (leave blank to keep current)" : "Password *"}
-              </label>
-              <Input
-                type="password"
-                required={!editingMember.id}
-                value={editingMember.password || ""}
-                onChange={(value) =>
-                  setEditingMember((p) => ({
-                    ...p,
-                    password: value,
-                  }))
-                }
-                placeholder={editingMember.id ? "••••••••" : "Enter password"}
               />
             </div>
             <div className={styles.formActionsRow}>
@@ -593,79 +568,8 @@ const SchoolSettings = () => {
         </div>
       )}
 
-      {/* --- Change Password --- */}
-      <div className={styles.cardSimple}>
-        <div className={styles.simpleHeader}>
-          <span className={styles.simpleHeaderIcon}><KeyRound size={18} /></span>
-          <h3 className={styles.simpleHeaderTitle}>Change Password</h3>
-        </div>
-        <div className={styles.passwordGrid}>
-          <FormField label="Current Password">
-            <Input
-              type="password"
-              value={pwForm.current}
-              onChange={(value) =>
-                setPwForm((p) => ({
-                  ...p,
-                  current: value,
-                }))
-              }
-              placeholder="Enter current password"
-            />          </FormField>
-          <FormField label="New Password">
-            <Input
-              type="password"
-              value={pwForm.next}
-              onChange={(value) =>
-                setPwForm((p) => ({
-                  ...p,
-                  next: value,
-                }))
-              }
-              placeholder="Enter new password"
-            />          </FormField>
-          <FormField label="Confirm New Password">
-            <Input
-              type="password"
-              value={pwForm.confirm}
-              onChange={(value) =>
-                setPwForm((p) => ({
-                  ...p,
-                  confirm: value,
-                }))
-              }
-              placeholder="Re-enter new password"
-            />          </FormField>
-        </div>
-        <div className={styles.passwordActions}>
-          <Button
-            type="button"
-            variant="filled"
-            startIcon="saveIcon"
-            onClick={() => {
-              if (!pwForm.current) {
-                alert("Enter your current password.");
-                return;
-              }
-
-              if (pwForm.next !== pwForm.confirm) {
-                alert("New passwords do not match.");
-                return;
-              }
-
-              if (pwForm.next.length < 6) {
-                alert("Password must be at least 6 characters.");
-                return;
-              }
-
-              alert("Password updated successfully!");
-              setPwForm({ current: "", next: "", confirm: "" });
-            }}
-          >
-            Update Password
-          </Button>
-        </div>
-      </div>
+      {/* --- PIN login (only when the organisation has it switched on) --- */}
+      <PinSection />
 
       {/* --- Help & Support --- */}
       <div className={styles.cardSimple}>

@@ -1,5 +1,6 @@
 import { ApiError } from "./errors";
 import type { AuthApi } from "./authApi";
+import { mockSignupPin } from "./pinApi";
 import { newFlowSessionId } from "./sessionId";
 import type { CommandAcceptedResponse, InviteDetailsResponse, InviteResponse } from "./types";
 import { maskEmail, maskPhone } from "../lib/contact";
@@ -199,9 +200,11 @@ export const mockAuthApi: AuthApi = {
     if (body.isPhoneOtpRequested) checkOtp(body.phoneOtpHash, 409);
     if (body.isWhatUpNoOtpRequested) checkOtp(body.whatUpNoOtpHash, 409);
 
+    let identifier = body.email ?? body.phone ?? body.whatUpNo;
     if (pending.inviteToken) {
       // Single use: the invite must still be pending, and is consumed here.
       const invite = usableInvite(pending.inviteToken);
+      identifier = invite.target ?? identifier;
       invite.status = "ACCEPTED";
       saveInvites();
       store().accounts[identifierKey(invite.target ?? "")] = { role: invite.role ?? "SCHOOL_MEMBER" };
@@ -212,6 +215,10 @@ export const mockAuthApi: AuthApi = {
     }
     saveStored(ACCOUNTS_KEY, store().accounts);
     pendingSignups.delete(sessionId);
+    // Optional PIN: trust this device and return its credentials once (like the server's 202).
+    if (body.pin && identifier) {
+      return { ...accepted("Completed signup accepted."), device: mockSignupPin(identifier, body.pin, body.deviceName) };
+    }
     return accepted("Completed signup accepted.");
   },
 

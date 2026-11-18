@@ -5,8 +5,11 @@ import { config } from "../../config/env";
 import { SAMPLE_JOBS } from "../data/sampleJobs";
 
 // Only jobs that are live and approved are shown on the public website.
+// Job statuses (job-contracts): ACTIVE, or SCHEDULED once its publishAt has passed.
 const isPublished = (job) =>
-  (!job.status || job.status === "OPEN") &&
+  (!job.status ||
+    job.status === "ACTIVE" ||
+    (job.status === "SCHEDULED" && job.publishAt && new Date(job.publishAt) <= new Date())) &&
   (!job.adminReviewStatus || job.adminReviewStatus === "APPROVED");
 
 /** JobResponse (job service) -> the fields the website job cards show. */

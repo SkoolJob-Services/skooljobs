@@ -8,43 +8,51 @@ const configuration = new Configuration({
 
 const jobApi = new JobApi(configuration, undefined, serviceHttp);
 
+// Job API (job-contracts): every change is a command on job.command and answers 202
+// { commandId, status: "ACCEPTED", message }; the job service stores it a moment later.
+// One endpoint, POST /jobs (operationId manageJob), does CREATE / UPDATE / DELETE by "action".
+
+// POST /jobs action CREATE. schoolProfileId may be left out: the service then uses the
+// school the caller runs (School Admin) or belongs to (member). postedByUserId comes from the token.
 export const createJob = async (payload) => {
-    return jobApi.createJob(payload);
+    return jobApi.manageJob({ ...payload, action: "CREATE" });
 };
 
-// The published @skooljobs/job-api client (0.0.1-SNAPSHOT) was generated
-// before listJobs/getJobById/manageJob's UPDATE+DELETE actions were added
-// to job.yml, so it only exposes createJob. These call the same real,
-// already-implemented backend endpoints directly until the client package
-// is regenerated/republished (a backend/build-pipeline task, not done here).
+// POST /jobs action UPDATE — content fields only; fields left out keep their value.
+// Status changes go through changeJobStatus.
+export const updateJob = async (jobId, payload) => {
+    return jobApi.manageJob({ ...payload, action: "UPDATE", jobId });
+};
 
-// GET /jobs — returns every job across all schools; callers filter by
-// schoolProfileId client-side (the backend has no school-scoped list filter).
-export const listJobs = async () => {
-    return serviceHttp.get(`${API_BASE_PATHS.job}/jobs`);
+// POST /jobs action DELETE
+export const deleteJob = async (jobId) => {
+    return jobApi.manageJob({ action: "DELETE", jobId });
+};
+
+// GET /jobs — the caller's tenant, newest first. Filters are optional: { schoolProfileId,
+// postedByUserId, status, adminReviewStatus }. Teachers see only approved, live jobs;
+// a school also sees its own jobs in every status; ADMIN sees all.
+export const listJobs = async (filters = {}) => {
+    return jobApi.listJobs(
+        filters.schoolProfileId,
+        filters.postedByUserId,
+        filters.status,
+        filters.adminReviewStatus,
+    );
 };
 
 // GET /jobs/{jobId}
 export const getJobById = async (jobId) => {
-    return serviceHttp.get(`${API_BASE_PATHS.job}/jobs/${jobId}`);
+    return jobApi.getJobById(jobId);
 };
 
-// POST /jobs with action: "UPDATE" — content fields only (title, subject,
-// location, employmentType, experienceRequired, vacancies, compensation,
-// description, requirements, qualificationsRequired, ...). UpdateJobRequest
-// has no status field, so job status transitions cannot be sent this way.
-export const updateJob = async (jobId, payload) => {
-    return serviceHttp.post(`${API_BASE_PATHS.job}/jobs`, {
-        ...payload,
-        action: "UPDATE",
-        jobId,
-    });
+// POST /jobs/review (ADMIN): decision APPROVED | REJECTED (rejectionReason required).
+export const reviewJob = async (jobId, decision, rejectionReason) => {
+    return jobApi.reviewJob({ jobId, decision, rejectionReason });
 };
 
-// POST /jobs with action: "DELETE"
-export const deleteJob = async (jobId) => {
-    return serviceHttp.post(`${API_BASE_PATHS.job}/jobs`, {
-        action: "DELETE",
-        jobId,
-    });
+// POST /jobs/status: ACTIVE, SCHEDULED (with publishAt), PAUSED, CLOSED, PENDING_APPROVAL
+// (send a draft for approval), DRAFT. Publishing needs the admin's approval first.
+export const changeJobStatus = async (jobId, status, { publishAt, expiryDate } = {}) => {
+    return jobApi.changeJobStatus({ jobId, status, publishAt, expiryDate });
 };

@@ -6,6 +6,7 @@ import { config } from "../config/env";
 import { SAMPLE_JOBS } from "../site/data/sampleJobs";
 import SharedJobDetail from "../components/SharedJobDetail";
 import styles from "./PublicJobView.module.css";
+import { BrandLogo } from "../components/BrandLogo";
 
 const PublicJobView = () => {
   const { jobId } = useParams();
@@ -91,12 +92,7 @@ const PublicJobView = () => {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.brandGroup}>
-            <span className={styles.brandLogo}>
-              SJ
-            </span>
-            <span className={styles.brandName}>
-              SkoolJobs
-            </span>
+            <BrandLogo height={44} />
           </div>
 
           <div className={styles.navActions}>

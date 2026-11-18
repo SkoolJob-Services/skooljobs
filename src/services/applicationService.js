@@ -56,3 +56,9 @@ export const getApplication = async (applicationId) => {
 export const listApplications = async (query = {}) => {
     return queriesApi.listApplications(query);
 };
+
+// POST /applications/interviews/search — ListInterviewsQuery -> InterviewListResponse
+// ({ school_id?, teacher_user_id?, job_id?, status?, from_date?, to_date?, page?, limit? }).
+export const listInterviews = async (query = {}) => {
+    return queriesApi.listInterviews(query);
+};

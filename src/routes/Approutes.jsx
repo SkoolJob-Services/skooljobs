@@ -1,10 +1,12 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import styles from "./Approutes.module.css";
-import { GuestRoute, HomeRedirect, RoleRoute } from "../features/auth/routeGuards";
+import { GuestRoute, HomeRedirect, RoleRoute, ProtectedRoute } from "../features/auth/routeGuards";
 import { TenantGate } from "../features/tenant/TenantGate";
 import { LoginPage } from "../features/login/LoginPage";
 import { LoginVerifyPage } from "../features/login/LoginVerifyPage";
+import { PinLoginPage } from "../features/pin/PinLoginPage";
+import { PinSetupPage } from "../features/pin/PinSetupPage";
 import { SignupPage } from "../features/signup/SignupPage";
 import { SignupVerifyPage } from "../features/signup/SignupVerifyPage";
 import { SignupDonePage } from "../features/signup/SignupDonePage";
@@ -95,6 +97,8 @@ function AppRoutes() {
       <Route element={<TenantPages />}>
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
         <Route path="/login/verify" element={<GuestRoute><LoginVerifyPage /></GuestRoute>} />
+        <Route path="/login/pin" element={<GuestRoute><PinLoginPage /></GuestRoute>} />
+        <Route path="/pin/setup" element={<ProtectedRoute><PinSetupPage /></ProtectedRoute>} />
         <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
         <Route path="/signup/verify" element={<GuestRoute><SignupVerifyPage /></GuestRoute>} />
         <Route path="/signup/done" element={<GuestRoute><SignupDonePage /></GuestRoute>} />

@@ -6,9 +6,10 @@ import { statusOf } from "../../api/errors";
 import { AuthLayout } from "../../components/auth/AuthLayout";
 import { FormAlert } from "../../components/auth/FormAlert";
 import { OtpField } from "../../components/auth/OtpField";
-import { maskEmail, maskPhone } from "../../lib/contact";
+import { maskEmail, maskIdentifier, maskPhone } from "../../lib/contact";
 import { errorMessage } from "../../lib/errorMessages";
 import { useFlow } from "../FlowContext";
+import { useSignupPin } from "../pin/useSignupPin";
 import { OTP_PATTERN, type OtpChannel } from "./signupForm";
 
 type OtpValues = Record<OtpChannel, string>;
@@ -24,6 +25,7 @@ export function SignupVerifyPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const signupPin = useSignupPin(submitting);
 
   if (!pendingSignup) return <Navigate to="/signup" replace />;
   const { request, channels, sessionId } = pendingSignup;
@@ -57,7 +59,11 @@ export function SignupVerifyPage() {
       return;
     }
 
+    const pinFields = signupPin.requestFields();
+    if (pinFields === null) return;
+
     const body: CompleteSignupRequest = {
+      ...pinFields,
       firstName: request.firstName,
       lastName: request.lastName,
       email: request.email,
@@ -75,10 +81,17 @@ export function SignupVerifyPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      await authApi.completeSignup(body, sessionId);
+      const response = await authApi.completeSignup(body, sessionId);
+      const identifier = request.email ?? request.phone ?? request.whatUpNo;
+      const pinSaved = signupPin.remember(
+        response,
+        [request.firstName, identifier ? maskIdentifier(identifier) : ""].filter(Boolean).join(" · "),
+        identifier,
+      );
       setPendingSignup(null);
-      navigate("/signup/done", { replace: true, state: { identifier: request.email ?? request.phone ?? request.whatUpNo } });
+      navigate("/signup/done", { replace: true, state: { identifier, pinSaved } });
     } catch (error) {
+      if (signupPin.showServerError(error)) return;
       const status = statusOf(error);
       const message = errorMessage(error, "signupComplete");
       if (status === 404 || status === 410) restart(message);
@@ -125,7 +138,11 @@ export function SignupVerifyPage() {
             label={`Code sent by ${destinations[channel]}`}
             value={otps[channel]}
             onChange={(value) => setOtp(channel, value)}
-            onSubmit={channels.length === 1 ? (code) => void handleSubmit(undefined, { [channel]: code }) : undefined}
+            onSubmit={
+              channels.length === 1 && !signupPin.enabled
+                ? (code) => void handleSubmit(undefined, { [channel]: code })
+                : undefined
+            }
             error={index === channels.length - 1 ? otpError : null}
             disabled={submitting}
             autoFocus={index === 0}
@@ -134,6 +151,7 @@ export function SignupVerifyPage() {
             onResend={() => void resend()}
           />
         ))}
+        {signupPin.fields}
         <FormAlert message={formError} />
         <Button type="submit" variant="filled" fullWidth loading={submitting} disabled={submitting || !allFilled}>
           Verify &amp; create account

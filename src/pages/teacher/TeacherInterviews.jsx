@@ -1,24 +1,37 @@
-import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import { Calendar, Clock, MapPin, Video, Clipboard } from "lucide-react";
-import { withoutDemoInterviews } from "../../lib/schooldata";
 import styles from "./styles/TeacherInterviews.module.css";
 
-const TeacherInterviews = () => {
-  const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
-  const teacherProfile = JSON.parse(
-    localStorage.getItem("skooljobs_teacher_data") || "{}",
-  );
-  const candidateName =
-    `${teacherProfile.firstName || currentUser.firstName || ""} ${teacherProfile.lastName || currentUser.lastName || ""}`.trim();
+/** InterviewSummary (application service) → the card fields below, with the job's title and school. */
+const toInterviewCard = (summary, jobsById) => {
+  const iv = summary.interview || {};
+  const job = jobsById.get(String(summary.job_id)) || {};
+  return {
+    id: iv.interview_id || `${summary.application_id}-${iv.scheduled_date}-${iv.scheduled_time}`,
+    role: job.role || "Interview",
+    school: job.school || "",
+    date: iv.scheduled_date || "",
+    time: iv.scheduled_time || "",
+    mode: iv.mode === "In-Person" ? "In-Person" : iv.mode === "Telephonic" ? "Telephonic" : "Online",
+    platform: iv.online_platform || "",
+    link: iv.meeting_link || "",
+    location: [iv.location, iv.room].filter(Boolean).join(", "),
+    round: iv.round || "",
+    duration: iv.duration || "",
+    interviewer: iv.interviewer || "",
+    notes: iv.notes_for_candidate || "",
+    status: iv.status || "Scheduled",
+  };
+};
 
-  const [interviews] = useState(() => {
-    try {
-      return withoutDemoInterviews(JSON.parse(localStorage.getItem("skooljobs_interviews") || "[]"));
-    } catch {
-      return [];
-    }
-  });
+const TeacherInterviews = () => {
+  // Interviews from the application service (POST /applications/interviews/search, loaded by TeacherLayout).
+  const { myInterviews = [], appliedJobs = [], allJobs = [], applicationsStatus } = useOutletContext();
+  const jobsById = new Map([...allJobs, ...appliedJobs].map((j) => [String(j.id), j]));
+  const interviews = myInterviews
+    .filter((summary) => summary.interview)
+    .map((summary) => toInterviewCard(summary, jobsById))
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
 
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "upcoming";
@@ -38,22 +51,16 @@ const TeacherInterviews = () => {
     const meetingLink = iv.link || iv.meetingLink || "";
     const text =
       iv.mode === "Online"
-        ? `Interview for ${roleName} at ${schoolName}\nDate: ${iv.date} at ${iv.time}\nMode: Online (Zoom: ${meetingLink})`
+        ? `Interview for ${roleName} at ${schoolName}\nDate: ${iv.date} at ${iv.time}\nMode: Online${iv.platform ? ` (${iv.platform})` : ""}${meetingLink ? `\nLink: ${meetingLink}` : ""}`
         : `Interview for ${roleName} at ${schoolName}\nDate: ${iv.date} at ${iv.time}\nMode: In-Person\nLocation: ${iv.location}`;
     navigator.clipboard.writeText(text);
     alert("Interview invitation details copied to clipboard!");
   };
 
-  const myInterviews = interviews.filter(
-    (iv) =>
-      String(iv.candidateId) === String(currentUser.id) ||
-      (candidateName && iv.candidateName?.toLowerCase() === candidateName.toLowerCase()),
-  );
-
-  const upcomingInterviews = myInterviews.filter(
+  const upcomingInterviews = interviews.filter(
     (iv) => iv.status !== "Completed" && iv.status !== "Cancelled",
   );
-  const pastInterviews = myInterviews.filter(
+  const pastInterviews = interviews.filter(
     (iv) => iv.status === "Completed" || iv.status === "Cancelled",
   );
 
@@ -93,7 +100,11 @@ const TeacherInterviews = () => {
 
       {activeInterviews.length === 0 ? (
         <p className={styles.emptyState}>
-          No {activeTab} interviews scheduled.
+          {applicationsStatus === "loading"
+            ? "Loading your interviews…"
+            : applicationsStatus === "error"
+              ? "Couldn't load your interviews. Please try again later."
+              : `No ${activeTab} interviews scheduled.`}
         </p>
       ) : (
         <div className={styles.listWrap}>
@@ -140,7 +151,7 @@ const TeacherInterviews = () => {
                 <div className={styles.statusCol}>
                   <span
                     className={`${styles.statusBadge} ${
-                      iv.status === "Scheduled"
+                      iv.status === "Scheduled" || iv.status === "Confirmed"
                         ? styles.statusScheduled
                         : iv.status === "Completed"
                           ? styles.statusCompleted

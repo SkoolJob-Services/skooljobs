@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 import {
@@ -12,6 +12,10 @@ import {
   X,
 } from "lucide-react";
 import styles from "./AdminLayout.module.css";
+import { BrandLogo } from "../components/BrandLogo";
+import { isLocalSession } from "../features/auth/localAccounts";
+import { listJobs } from "../services/jobService";
+import { fromJobResponse } from "../pages/admin/jobStatus";
 
 const sidebarItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/admin/dashboard" },
@@ -78,6 +82,46 @@ const AdminLayout = () => {
     localStorage.setItem("skooljobs_jobs", JSON.stringify(jobs));
   }, [jobs]);
 
+  // Jobs posted by schools, from the job service (GET /jobs: ADMIN sees every job of the
+  // tenant, newest first). The local admin login (localAccounts) has no server token, so
+  // its pages keep using the jobs stored in this browser.
+  const localSession = isLocalSession(session);
+  const [serverJobs, setServerJobs] = useState([]);
+  const [serverJobsStatus, setServerJobsStatus] = useState(localSession ? "local" : "loading");
+
+  const loadServerJobs = useCallback(
+    () =>
+      listJobs().then(
+        ({ data }) => ({ ok: true, jobs: (Array.isArray(data) ? data : []).map(fromJobResponse) }),
+        (error) => {
+          console.error("Failed to load jobs:", error);
+          return { ok: false, jobs: [] };
+        },
+      ),
+    [],
+  );
+
+  const applyServerJobs = useCallback((result) => {
+    if (result.ok) setServerJobs(result.jobs);
+    setServerJobsStatus(result.ok ? "ready" : "error");
+  }, []);
+
+  /** Reloads the list (after a decision, or "Try again"). */
+  const refreshServerJobs = useCallback(() => {
+    if (!localSession) loadServerJobs().then(applyServerJobs);
+  }, [localSession, loadServerJobs, applyServerJobs]);
+
+  useEffect(() => {
+    if (localSession) return undefined;
+    let cancelled = false;
+    loadServerJobs().then((result) => {
+      if (!cancelled) applyServerJobs(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [localSession, loadServerJobs, applyServerJobs]);
+
   const currentUser = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("currentUser") || "{}");
@@ -118,7 +162,21 @@ const AdminLayout = () => {
     ]),
   );
 
-  const outletCtx = { jobs, setJobs, myJobs, currentUser, managedSchools };
+  // Lists across the admin pages: the schools' jobs from the server, then the jobs this
+  // browser keeps (the admin's own posts, and everything when logged in locally).
+  const allJobs = [...serverJobs, ...jobs];
+
+  const outletCtx = {
+    jobs: allJobs,
+    setJobs,
+    myJobs,
+    currentUser,
+    managedSchools,
+    serverJobs,
+    setServerJobs,
+    serverJobsStatus,
+    refreshServerJobs,
+  };
 
   const navList = (
     <nav className={styles.nav} aria-label="Platform admin">
@@ -156,9 +214,8 @@ const AdminLayout = () => {
         id="admin-sidebar"
       >
         <div className={styles.brandRow}>
-          <div className={styles.brandMark} aria-hidden="true">SJ</div>
           <div className={styles.brandText}>
-            <p className={styles.brandName}>SkoolJobs</p>
+            <BrandLogo onDark height={44} />
             <p className={styles.brandSub}>Platform Admin</p>
           </div>
           <button
