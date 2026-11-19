@@ -2878,6 +2878,7 @@ const TeacherProfile = () => {
                       <td className={styles.tableCell}>
                         <div className={styles.tableActionsRow}>
                           <Button
+                            type="button"
                             variant="outlined"
                             onClick={() => editQualification(index)}
                             startIcon="editIcon"
@@ -3147,6 +3148,7 @@ const TeacherProfile = () => {
                       <td className={styles.tableCell}>
                         <div className={styles.tableActionsRow}>
                           <Button
+                            type="button"
                             variant="outlined"
                             onClick={() => editExperience(index)}
                             startIcon="editIcon"
