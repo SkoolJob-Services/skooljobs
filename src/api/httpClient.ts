@@ -10,6 +10,13 @@ import type { ErrorResponse } from "./types";
  * X-Tenant-Code), the bearer token, and turns failures into ApiError.
  */
 
+/**
+ * `npm run dev:mock` signs users in with unsigned tokens, which every real service answers
+ * with 401 (e.g. through VITE_API_PROXY_TARGET). That 401 says nothing about the session,
+ * so it must not log the user out there.
+ */
+const mockSession = import.meta.env.DEV && config.useMockApi;
+
 let getAccessToken: () => string | null = () => null;
 let onUnauthorized: () => void = () => {};
 
@@ -48,7 +55,7 @@ http.interceptors.response.use(
     const { status, data, statusText } = error.response;
     const body: Partial<ErrorResponse> = data && typeof data === "object" ? (data as Partial<ErrorResponse>) : {};
     // Only authenticated calls carry a token; a 401 there means the session ended.
-    if (status === 401 && error.config?.headers?.Authorization) onUnauthorized();
+    if (status === 401 && error.config?.headers?.Authorization && !mockSession) onUnauthorized();
     return Promise.reject(
       new ApiError(status, body.code ?? `HTTP_${status}`, body.message ?? (statusText || "Request failed"), data),
     );
@@ -72,7 +79,12 @@ serviceHttp.interceptors.request.use(addPlatformHeaders);
 serviceHttp.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
-    if (error instanceof AxiosError && error.response?.status === 401 && error.config?.headers?.Authorization) {
+    if (
+      error instanceof AxiosError &&
+      error.response?.status === 401 &&
+      error.config?.headers?.Authorization &&
+      !mockSession
+    ) {
       onUnauthorized();
     }
     return Promise.reject(error);

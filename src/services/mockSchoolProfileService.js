@@ -70,6 +70,12 @@ function mySchool() {
 }
 
 export const mockSchoolProfileService = {
+  /** GET /school-profiles (ADMIN): every stored profile, one page. */
+  async listSchoolProfiles() {
+    const content = Object.values(loadProfiles()).filter((p) => p.schoolName);
+    return { data: { content, page: 0, size: content.length, totalElements: content.length, totalPages: 1 } };
+  },
+
   async createSchoolProfile(payload) {
     const profiles = loadProfiles();
     const schoolProfileId = crypto.randomUUID();

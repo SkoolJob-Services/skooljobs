@@ -45,7 +45,6 @@ export function usePublicJobs() {
 
   useEffect(() => {
     let cancelled = false;
-    if (config.useMockApi) return undefined;
     listJobs()
       .then(({ data }) => {
         if (cancelled) return;
@@ -54,6 +53,8 @@ export function usePublicJobs() {
           .filter(isPublished)
           .map(mapPublicJob)
           .sort((a, b) => String(b.postedDate || "").localeCompare(String(a.postedDate || "")));
+        // Mock: jobs approved in the in-browser job service, then the demo jobs.
+        if (config.useMockApi) jobs.push(...SAMPLE_JOBS);
         setState({ jobs, loading: false, error: null });
         return withSchoolNames(jobs);
       })

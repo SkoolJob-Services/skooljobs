@@ -237,7 +237,7 @@ const SchoolProfile = () => {
 
   // The caller's own school comes from the server (GET /school-profiles/me),
   // never from localStorage. Save updates that school; schools are only created
-  // by a platform-admin invitation, so there is no create from this page.
+  // by a ADMIN invitation, so there is no create from this page.
   const [loadError, setLoadError] = useState(false);
   const [loadedProfile, setLoadedProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);

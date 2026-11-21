@@ -54,7 +54,7 @@ export function LoginPage() {
     setFormError(null);
     setNotFound(false);
 
-    // Head Admin / school HR / platform admin can't log in via the backend yet — log in locally without OTP,
+    // Head Admin / school HR / ADMIN can't log in via the backend yet — log in locally without OTP,
     // whichever channel is selected.
     const local = normalizeIdentifier(identifier);
     const localAccount = local ? findLocalAccount(local.value) : undefined;

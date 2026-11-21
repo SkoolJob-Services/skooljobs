@@ -36,6 +36,7 @@ import AdminJobs from "../pages/admin/AdminJobs";
 import AdminSchools from "../pages/admin/AdminSchools";
 import AdminInviteSchools from "../pages/admin/AdminInviteSchools";
 import AdminJobApprovals from "../pages/admin/AdminJobApprovals";
+import AdminTeachers from "../pages/admin/AdminTeachers";
 import AdminPostJob from "../pages/admin/AdminPostJob";
 import AdminManageJobs from "../pages/admin/AdminManageJobs";
 import SchoolHome from "../pages/school/SchoolHome";
@@ -165,13 +166,14 @@ function AppRoutes() {
         <Route path="/teacher/profile" element={<TeacherProfile />} />
       </Route>
 
-      {/* SkoolJobs platform admin module — reviews jobs submitted by schools and posts jobs for several schools */}
+      {/* SkoolJobs ADMIN module — reviews jobs submitted by schools and posts jobs for several schools */}
       <Route element={<RoleRoute roles={["ADMIN"]} />}>
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="invite-schools" element={<AdminInviteSchools />} />
           <Route path="job-approvals" element={<AdminJobApprovals />} />
+          <Route path="teachers" element={<AdminTeachers />} />
           <Route path="jobs" element={<AdminJobs />} />
           <Route path="schools" element={<AdminSchools />} />
           <Route path="post-job" element={<AdminPostJob />} />

@@ -12,3 +12,4 @@ export { ApiError, isApiError, statusOf } from "./errors";
 export { configureAuthBridge, serviceHttp } from "./httpClient";
 export { pinApi } from "./pinApi";
 export type { DeviceCredentials, PinSettings, PinStatus, TrustedDevice } from "./pinApi";
+export { accountApi } from "./accountApi";

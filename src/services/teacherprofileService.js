@@ -1,6 +1,8 @@
 import { Configuration, TeacherApi } from "@skooljobs/teacher-api";
 import { serviceHttp } from "../api/httpClient";
 import { API_BASE_PATHS } from "./apiConfig";
+import { mockApiEnabled } from "../api";
+import { mockTeacherService } from "./mockTeacherService";
 
 const configuration = new Configuration({
     basePath: API_BASE_PATHS.teacherProfile,
@@ -26,4 +28,52 @@ export const updateTeacherProfile = async (payload) => {
 // jobService.js's listJobs/getJobById bypass.
 export const getOwnTeacherProfile = async () => {
     return serviceHttp.get(`${API_BASE_PATHS.teacherProfile}/teachers/me`);
+};
+// GET /teachers/search — Teacher[] filtered by name, subject, city, qualification and
+// status (ACTIVE | INACTIVE | DELETED); every filter is optional.
+// Admin → Teachers uses the in-browser mock under `npm run dev:mock` (never in a production build).
+export const searchTeachers = async ({ name, subject, city, qualification, status } = {}) => {
+    if (mockApiEnabled) return mockTeacherService.searchTeachers({ name, subject, city, qualification, status });
+    return teacherApi.searchTeachers(
+        name || undefined,
+        subject || undefined,
+        city || undefined,
+        qualification || undefined,
+        status || undefined,
+    );
+};
+
+// POST /teachers — create a teacher profile (the service generates teacher_id). 202.
+export const createTeacherProfile = async (teacher) => {
+    if (mockApiEnabled) return mockTeacherService.createTeacher(teacher);
+    return teacherApi.createTeacher(teacher);
+};
+
+// POST /teachers/update by the ADMIN (Admin → Teachers): any teacher, by teacherId.
+export const adminUpdateTeacher = async (teacher) => {
+    if (mockApiEnabled) return mockTeacherService.updateTeacher(teacher);
+    return teacherApi.updateTeacher(teacher);
+};
+
+/*
+ * Login status of a teacher (teacher-profile → CHANGE_USER_STATUS command → signup). The profile
+ * and its details are always kept; each call answers 202 and the change follows a moment later.
+ */
+
+// POST /teachers/delete — the teacher closes their own account: profile DELETED, login suspended.
+export const deleteOwnAccount = async (teacherId) => {
+    if (mockApiEnabled) return mockTeacherService.setStatus(teacherId, "DELETED");
+    return teacherApi.deleteTeacher({ teacher_id: teacherId });
+};
+
+// POST /teachers/deactivate — ADMIN only: profile INACTIVE, login suspended.
+export const deactivateTeacher = async (teacherId) => {
+    if (mockApiEnabled) return mockTeacherService.setStatus(teacherId, "INACTIVE");
+    return teacherApi.deactivateTeacher({ teacher_id: teacherId });
+};
+
+// POST /teachers/activate — ADMIN only: profile ACTIVE, login allowed again (also after a delete).
+export const activateTeacher = async (teacherId) => {
+    if (mockApiEnabled) return mockTeacherService.setStatus(teacherId, "ACTIVE");
+    return teacherApi.activateTeacher({ teacher_id: teacherId });
 };

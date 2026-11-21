@@ -8,6 +8,10 @@ interface ImportMetaEnv {
   readonly VITE_TENANT_CODE?: string;
   readonly VITE_DEFAULT_COUNTRY_CODE?: string;
   readonly VITE_USE_MOCK_API?: string;
+  /** Wait before re-reading the profile after a save (ms). Default 2500. */
+  readonly VITE_PROFILE_REFRESH_DELAY_MS?: string;
+  /** How many times the profile is re-read after a save before giving up. Default 3. */
+  readonly VITE_PROFILE_REFRESH_ATTEMPTS?: string;
 }
 
 interface ImportMeta {

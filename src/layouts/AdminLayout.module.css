@@ -1,4 +1,4 @@
-/* Platform Admin shell. Uses the global SkoolJobs theme (index.css) and the
+/* Admin (ADMIN role) shell. Uses the global SkoolJobs theme (index.css) and the
    same sidebar treatment as the School / Teacher layouts. The --admin-* aliases
    below are only shorthands for the admin page modules; they don't change the
    global tokens. */

@@ -18,7 +18,7 @@ import { maskEmail, maskPhone } from "../lib/contact";
  * - Login: the token carries the role the account was created with. Like the
  *   real Signup token it has no school: linking an invite to a school is a
  *   SchoolProfile concern. Identifiers that never signed up log in as TEACHER.
- *   The platform admin logs in through features/auth/localAccounts, not here.
+ *   The ADMIN logs in through features/auth/localAccounts, not here.
  * - Like the real service, creating an invite does not reject a second pending
  *   invite to the same contact (only a target containing "exists" returns 409).
  *

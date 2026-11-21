@@ -20,6 +20,7 @@ import {
 import { resumesData } from "../lib/teacherdata";
 import { computeJobMatch, loadTeacherMatchProfile } from "../lib/jobMatch";
 import { applyToJob, withdrawApplication } from "../services/applicationService";
+import { mockApiEnabled } from "../api";
 import { getJobById } from "../services/jobService";
 import { APPLICATION_STATUS_LABELS, useOwnApplications } from "../features/teacher/ownApplications";
 import {
@@ -31,11 +32,15 @@ import {
 } from "../features/teacher/ownTeacherProfile";
 import { mapPublicJob, usePublicJobs } from "../site/hooks/usePublicJobs";
 import {
+  getOwnTeacherProfile,
   updateTeacherProfile,
 } from "../services/teacherprofileService";
 import styles from "./TeacherLayout.module.css";
 import { DocumentImage } from "../components/DocumentImage";
 import { BrandLogo } from "../components/BrandLogo";
+import { refreshUntil } from "../lib/profileRefresh";
+import { ApplyDialog } from "../features/teacher/ApplyDialog";
+import { DOCUMENT_TYPES, uploadDocumentRef } from "../services/documentService";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -65,7 +70,16 @@ const fromBackendResume = (r) => ({
   score: r.score,
   source: r.source,
   fileUrl: r.file_url || r.fileUrl || "",
+  format: r.format || "",
 });
+
+/** Format label from the file, like the profile's resume upload. */
+const resumeFormatOf = (file) =>
+  file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+    ? "PDF"
+    : /\.docx?$/i.test(file.name)
+      ? "DOCX"
+      : "Text";
 
 const profileSections = [
   { id: "basic", label: "My Profile" },
@@ -121,8 +135,10 @@ const TeacherLayout = () => {
   // The teacher's own profile (GET /teachers/me) and the live job list (GET /jobs).
   const {
     profile: teacherProfile,
+    raw: teacherProfileRaw,
     status: profileStatus,
     refresh: refreshTeacherProfile,
+    apply: applyTeacherProfile,
   } = useOwnTeacherProfile();
   const { jobs: liveJobs, loading: jobsLoading } = usePublicJobs();
   const completion = profileCompletion(teacherProfile);
@@ -162,7 +178,15 @@ const TeacherLayout = () => {
     () => (teacherProfile?.resumes || []).map(fromBackendResume).filter((r) => UUID_PATTERN.test(String(r.id))),
     [teacherProfile],
   );
-  const resumes = backendResumes.length > 0 ? backendResumes : localResumes;
+  // Resumes just added from the apply dialog: shown until the profile reload has them (202).
+  const [addedResumes, setAddedResumes] = useState([]);
+  // The job being applied for: the apply dialog (choose or add a resume) is open for it.
+  const [applyingJob, setApplyingJob] = useState(null);
+  const resumes = useMemo(() => {
+    const base = backendResumes.length > 0 ? backendResumes : localResumes;
+    const known = new Set(base.map((r) => String(r.id)));
+    return [...base, ...addedResumes.filter((r) => !known.has(String(r.id)))];
+  }, [backendResumes, localResumes, addedResumes]);
   const [pickedResume, setSelectedResume] = useState(() => localResumes[0] || null);
   const selectedResume =
     (pickedResume && resumes.find((r) => String(r.id) === String(pickedResume.id))) || resumes[0] || null;
@@ -321,31 +345,39 @@ const TeacherLayout = () => {
     setActivities((prev) => [{ message, date: new Date().toISOString(), type }, ...prev]);
   };
 
-  /**
-   * POST /applications { job_id, resume_id } with the selected resume (from the profile).
-   * 202: stored a moment later, so the job shows as applied straight away and the list
-   * reloads shortly after.
-   */
-  const handleApply = async (job) => {
+  /** "Apply" on a job: open the dialog to choose the resume to send, or add one. */
+  const handleApply = (job) => {
     if (appliedJobs.some((item) => String(item.id) === String(job.id))) return;
     if (!UUID_PATTERN.test(String(job.id))) {
       alert("This is a sample job and can't be applied to.");
       return;
     }
-    const resume = UUID_PATTERN.test(String(selectedResume?.id)) ? selectedResume : backendResumes[0];
-    if (!resume) {
-      alert("Add a resume to your profile before applying.");
-      navigate("/teacher/profile?section=resume");
-      return;
-    }
+    setApplyingJob(job);
+  };
+
+  /**
+   * POST /applications { job_id, resume_id } with the resume chosen in the dialog. 202: stored
+   * a moment later, so the job shows as applied straight away and the list reloads shortly
+   * after. Rejects with a message the dialog shows.
+   */
+  const submitApplication = async (job, chosen) => {
+    // `npm run dev:mock` has no teacher-profile service: a resume without a real id uses a stand-in.
+    const resume = UUID_PATTERN.test(String(chosen?.id))
+      ? chosen
+      : mockApiEnabled
+        ? { id: "00000000-0000-4000-8000-0000000000aa" }
+        : null;
+    if (!resume) throw new Error("Choose a resume saved on your profile.");
     try {
       await applyToJob({ job_id: String(job.id), resume_id: String(resume.id) });
     } catch (error) {
       console.error("Application API apply failed:", error);
       const message = error?.response?.data?.message;
-      alert(message ? `Couldn't apply: ${message}` : "Couldn't send your application. Please try again.");
-      return;
+      throw new Error(message ? `Couldn't apply: ${message}` : "Couldn't send your application. Please try again.", {
+        cause: error,
+      });
     }
+    setSelectedResume(chosen);
     patchApplications((prev) => [
       {
         application_id: null,
@@ -360,6 +392,93 @@ const TeacherLayout = () => {
     refreshApplications(2000);
     addActivity(`Applied for ${job.role} at ${job.school}`, "apply");
     shareWithSchoolLocally(job);
+  };
+
+  /**
+   * "Add Resume" in the apply dialog: the file goes to document-management (TEACHER_RESUME) and
+   * the resume is added to the profile's resumes (POST /teachers/update, section "resumes"),
+   * like the profile page's upload. Returns the new resume so it can be sent right away.
+   */
+  const addResumeForApply = async (file, title) => {
+    if (!currentUser.id) throw new Error("Your session is missing a user id. Please log in again.");
+    let fileUrl;
+    try {
+      fileUrl = await uploadDocumentRef({
+        ownerId: String(currentUser.id),
+        documentType: DOCUMENT_TYPES.TEACHER_RESUME,
+        file,
+        fileName: file.name,
+      });
+    } catch (error) {
+      console.error("Resume upload failed:", error);
+      throw new Error("Couldn't upload the resume file. Please try again.", { cause: error });
+    }
+    const resume = {
+      id: crypto.randomUUID(),
+      name: file.name,
+      fileName: file.name,
+      title,
+      fileUrl,
+      format: resumeFormatOf(file),
+      source: "Uploaded",
+      skill: teacherProfile?.mainSubject || "",
+    };
+
+    if (mockApiEnabled) {
+      // No teacher-profile service: kept in this browser, like the profile page does.
+      const list = [...localResumes, resume];
+      localStorage.setItem("skooljobs_resumes", JSON.stringify(list));
+      setResumes(list);
+    } else {
+      // The resumes section replaces the whole list: start from the profile as stored now (the
+      // profile page may have changed it since this layout loaded it).
+      let existing = Array.isArray(teacherProfileRaw?.resumes) ? teacherProfileRaw.resumes : [];
+      try {
+        const { data } = await getOwnTeacherProfile();
+        if (Array.isArray(data?.resumes)) existing = data.resumes;
+      } catch (error) {
+        console.warn("Couldn't reload the profile before saving the resume; using the loaded copy.", error);
+      }
+      try {
+        await updateTeacherProfile({
+          teacherId: teacherProfile?.teacherId || String(currentUser.id),
+          teacher_user_id: String(currentUser.id),
+          updated_sections: ["resumes"],
+          resumes: [
+            ...existing,
+            {
+              resume_id: resume.id,
+              source: "uploaded",
+              title: resume.title,
+              file_name: resume.fileName,
+              file_url: resume.fileUrl,
+              format: resume.format,
+              skill: resume.skill || null,
+              score: null,
+              full_name: teacherProfile?.fullName || null,
+              email: teacherProfile?.email || null,
+              mobile: teacherProfile?.mobile || null,
+              is_active: true,
+            },
+          ],
+        });
+      } catch (error) {
+        console.error("Saving the resume to the profile failed:", error);
+        throw new Error("The file was uploaded, but saving the resume to your profile failed. Please try again.", {
+          cause: error,
+        });
+      }
+      // Stored a moment after the 202: re-read until the new resume is there (PROFILE_REFRESH).
+      void refreshUntil(
+        async () => (await getOwnTeacherProfile()).data,
+        (data) => (data?.resumes || []).some((r) => String(r.resume_id || r.resumeId) === String(resume.id)),
+      ).then(({ result, done }) => {
+        if (done) applyTeacherProfile(result);
+      });
+    }
+    setAddedResumes((prev) => [...prev, resume]);
+    setSelectedResume(resume);
+    return resume;
   };
 
   /**
@@ -493,6 +612,7 @@ const TeacherLayout = () => {
     profileStatus,
     profileCompletion: completion,
     refreshTeacherProfile,
+    applyTeacherProfile,
     jobsLoading,
   };
 
@@ -709,6 +829,20 @@ const TeacherLayout = () => {
           <div className={styles.outletWrap}>
             <Outlet context={outletCtx} />
           </div>
+          {applyingJob && (
+            <ApplyDialog
+              job={applyingJob}
+              resumes={resumes}
+              initialResumeId={selectedResume?.id}
+              onAddResume={addResumeForApply}
+              onApply={(resume) => submitApplication(applyingJob, resume)}
+              onCreateOnProfile={() => {
+                setApplyingJob(null);
+                navigate("/teacher/profile?section=resume");
+              }}
+              onClose={() => setApplyingJob(null)}
+            />
+          )}
         </main>
       </div>
     </div>

@@ -59,6 +59,10 @@ export const deviceStore = {
   touch(deviceId: string): void {
     write(read().map((d) => (d.deviceId === deviceId ? { ...d, lastUsedAt: new Date().toISOString() } : d)));
   },
+  /** The account's login email/phone changed: later "Forgot PIN" uses the new one. */
+  changeIdentifier(oldIdentifier: string, newIdentifier: string, label: string): void {
+    write(read().map((d) => (d.identifier === oldIdentifier ? { ...d, identifier: newIdentifier, label } : d)));
+  },
   remove(deviceId: string): void {
     write(read().filter((d) => d.deviceId !== deviceId));
   },

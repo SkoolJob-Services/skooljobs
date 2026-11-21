@@ -4,6 +4,7 @@ import { PlusCircle, Search } from "lucide-react";
 import managejobsOptions from "../../../dropdown/School_module/managejobs.json";
 import { Button, Select } from "@cloudstrytech/ui-components";
 import { toOptions } from "../../lib/selectOptions";
+import { changeJobStatus } from "../../services/jobService";
 import styles from "../school/styles/SchoolManageJobs.module.css";
 
 const jobStatusOptions = toOptions(managejobsOptions.Job_status);
@@ -21,7 +22,9 @@ const jobStatusChip = {
 
 const AdminManageJobs = () => {
   const navigate = useNavigate();
-  const { myJobs, setJobs, managedSchools } = useOutletContext();
+  // Every school's jobs from the job service, plus the jobs this browser keeps.
+  const { jobs, setJobs, managedSchools, setServerJobs, refreshServerJobs, serverJobsStatus } = useOutletContext();
+  const [busyId, setBusyId] = useState(null);
 
   const [jobSearch, setJobSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -35,8 +38,45 @@ const AdminManageJobs = () => {
     );
   };
 
-  const filteredJobs = myJobs
-    .filter((j) => j.title.toLowerCase().includes(jobSearch.toLowerCase()))
+  /** Lifecycle change on the job service (POST /jobs/status), shown at once, reloaded shortly after. */
+  const changeStatus = async (job, status, label) => {
+    setBusyId(job.id);
+    try {
+      await changeJobStatus(job.id, status);
+      setServerJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, status: label, serverStatus: status } : j)));
+      setTimeout(() => refreshServerJobs(), 2000);
+    } catch (error) {
+      console.error("Job status change failed:", error);
+      const message = error?.response?.data?.message;
+      alert(message ? `Couldn't change the job: ${message}` : "Couldn't change the job. Please try again.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** Actions a server job allows in its current status (same rules as the job service). */
+  const serverActions = (job) => {
+    const approved = job.review === "APPROVED";
+    switch (job.serverStatus) {
+      case "ACTIVE":
+        return [["PAUSED", "Paused", "Pause"], ["CLOSED", "Closed", "Close"]];
+      case "PAUSED":
+        return [["ACTIVE", "Active", "Resume"], ["CLOSED", "Closed", "Close"]];
+      case "SCHEDULED":
+        return [["ACTIVE", "Active", "Publish Now"], ["CLOSED", "Closed", "Close"]];
+      case "CLOSED":
+      case "EXPIRED":
+        return approved ? [["ACTIVE", "Active", "Reopen"]] : [];
+      case "PENDING_APPROVAL":
+      case "DRAFT":
+        return [["CLOSED", "Closed", "Close"]];
+      default:
+        return [];
+    }
+  };
+
+  const filteredJobs = jobs
+    .filter((j) => (j.title || "").toLowerCase().includes(jobSearch.toLowerCase()))
     .filter((j) => !statusFilter || j.status === statusFilter)
     .filter((j) => !schoolFilter || j.schoolName === schoolFilter);
 
@@ -94,7 +134,7 @@ const AdminManageJobs = () => {
               {filteredJobs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className={styles.emptyCell}>
-                    No jobs found.
+                    {serverJobsStatus === "loading" ? "Loading jobs…" : "No jobs found."}
                   </td>
                 </tr>
               ) : (
@@ -106,7 +146,7 @@ const AdminManageJobs = () => {
                         <p className={styles.tdSubject}>{job.subject}</p>
                       )}
                     </td>
-                    <td className={styles.tdMuted}>{job.schoolName}</td>
+                    <td className={styles.tdMuted}>{job.schoolName || "—"}</td>
                     <td className={styles.td}>
                       <span
                         className={`${styles.statusChip} ${jobStatusChip[job.status] || styles.statusDefault
@@ -122,7 +162,28 @@ const AdminManageJobs = () => {
                     </td>
                     <td className={styles.tdLight}>{job.date}</td>
                     <td className={styles.tdActions}>
-                      {job.status === "Approved" && (
+                      {job.fromServer && job.status === "Pending Approval" && (
+                        <button
+                          type="button"
+                          onClick={() => navigate("/admin/job-approvals")}
+                          className={styles.publishButton}
+                        >
+                          Review
+                        </button>
+                      )}
+                      {job.fromServer &&
+                        serverActions(job).map(([status, label, action]) => (
+                          <button
+                            key={status}
+                            type="button"
+                            disabled={busyId === job.id}
+                            onClick={() => changeStatus(job, status, label)}
+                            className={styles.publishButton}
+                          >
+                            {action}
+                          </button>
+                        ))}
+                      {!job.fromServer && job.status === "Approved" && (
                         <button
                           type="button"
                           onClick={() => publishApprovedJob(job.id)}

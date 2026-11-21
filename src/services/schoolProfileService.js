@@ -39,7 +39,7 @@ export const getMySchoolProfile = async () => {
     return serviceHttp.get(`${API_BASE_PATHS.schoolProfile}/school-profiles/me`);
 };
 
-// POST /school-profiles/{schoolProfileId}/admin-invitations/{inviteId} — Platform Admin only.
+// POST /school-profiles/{schoolProfileId}/admin-invitations/{inviteId} — ADMIN only.
 // 204: linked (repeating it is safe). 404 SCH_006: school not found (or not stored yet:
 // creation is asynchronous). 409 SCH_007 / SCH_008 / SCH_009: see errorMessages.
 export const linkSchoolAdminInvite = async (schoolProfileId, inviteId) => {
@@ -54,4 +54,21 @@ export const linkSchoolAdminInvite = async (schoolProfileId, inviteId) => {
 export const updateSchoolProfile = async (payload) => {
     if (mockApiEnabled) return mockSchoolProfileService.updateSchoolProfile(payload);
     return schoolProfileApi.updateSchoolProfile(payload);
+};
+// GET /school-profiles (ADMIN) — SchoolProfilePage { content, page, size, totalElements, totalPages },
+// newest first. Filters: status (active | pending_verification | suspended | rejected), name.
+export const listSchoolProfiles = async ({ status, profileVerified, name, page = 0, size = 100 } = {}) => {
+    if (mockApiEnabled) return mockSchoolProfileService.listSchoolProfiles();
+    return schoolProfileApi.listSchoolProfiles(status, profileVerified, name, page, size);
+};
+
+/** Every School Profile of the tenant (ADMIN), following the pages (at most `maxPages`). */
+export const listAllSchoolProfiles = async (maxPages = 10) => {
+    const all = [];
+    for (let page = 0; page < maxPages; page += 1) {
+        const { data } = await listSchoolProfiles({ page, size: 100 });
+        all.push(...(data?.content || []));
+        if (!data?.totalPages || page + 1 >= data.totalPages) break;
+    }
+    return all;
 };

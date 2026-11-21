@@ -23,7 +23,7 @@ const BY_CODE: Record<string, string> = {
   LOGIN_OTP_ATTEMPTS_EXCEEDED: "Too many incorrect codes. Request a new code.",
   INVITE_INVALID: "This invite is no longer valid. Ask for a new invite.",
   INVITE_CONTEXT_INVALID: "A school admin invite needs the school and a phone number.",
-  INVITE_CONTEXT_NOT_ALLOWED: "Only a platform admin can invite a school admin.",
+  INVITE_CONTEXT_NOT_ALLOWED: "Only an ADMIN can invite a school admin.",
   // SchoolProfile: linking a School Admin invite to a school (409).
   SCH_007: "This school already has a school admin.",
   SCH_008: "This invitation is already linked to another school.",
