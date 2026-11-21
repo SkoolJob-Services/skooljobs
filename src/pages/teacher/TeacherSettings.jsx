@@ -4,10 +4,15 @@ import { HelpCircle, Save, Trash2, Bell, Eye } from "lucide-react";
 import FormField from "../../components/FormField";
 import styles from "./styles/TeacherSettings.module.css";
 import { PinSection } from "../../features/pin/PinSection";
-import { Button, Input } from "@cloudstrytech/ui-components";
+import { LoginContactSection } from "../../features/account/LoginContactSection";
+import { normalizeTeacherProfile } from "../../features/teacher/ownTeacherProfile";
+import { refreshUntil } from "../../lib/profileRefresh";
+import { mockApiEnabled } from "../../api";
+import { Button, Input, useSnackbar } from "@cloudstrytech/ui-components";
 import {
   updateTeacherProfile,
   getOwnTeacherProfile,
+  deleteOwnAccount,
 } from "../../services/teacherprofileService";
 
 const storedUser = (() => {
@@ -19,7 +24,23 @@ const storedUser = (() => {
 })();
 
 const TeacherSettings = () => {
-  const { handleLogout } = useOutletContext();
+  // teacherProfile: GET /teachers/me (TeacherLayout), for the email and WhatsApp number shown.
+  const { handleLogout, teacherProfile, applyTeacherProfile } = useOutletContext();
+
+  // A verified email / WhatsApp / mobile change reaches the teacher profile through signup's
+  // event a moment later: re-read it until the new value is there (PROFILE_REFRESH: wait
+  // VITE_PROFILE_REFRESH_DELAY_MS before each read, at most VITE_PROFILE_REFRESH_ATTEMPTS reads),
+  // so the other pages show it.
+  const reloadProfileSoon = (change) => {
+    if (!applyTeacherProfile || mockApiEnabled) return;
+    const same = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+    void refreshUntil(
+      async () => (await getOwnTeacherProfile()).data,
+      (data) => !change || same(normalizeTeacherProfile(data)?.[change.field], change.value),
+    ).then(({ result, done }) => {
+      if (done) applyTeacherProfile(result);
+    });
+  };
 
   // Settings state
   const [isProfileVisible, setIsProfileVisible] = useState(true);
@@ -81,11 +102,43 @@ const TeacherSettings = () => {
     }
   };
 
-  // Delete account states
+  // Delete account: the teacher's login is suspended (signup) and the profile is marked DELETED;
+  // the details are kept, so an administrator can reactivate the account later.
+  const snackbar = useSnackbar();
   const [deleteStep, setDeleteStep] = useState(0);
   const [deleteChecks, setDeleteChecks] = useState({ c1: false, c2: false });
-  const [deleteOtp, setDeleteOtp] = useState("");
-  const [deleteOtpSent, setDeleteOtpSent] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const resetDelete = () => {
+    setDeleteStep(0);
+    setDeleteChecks({ c1: false, c2: false });
+    setDeleteConfirm("");
+    setDeleteError("");
+  };
+
+  const confirmDelete = async () => {
+    const teacherId = teacherProfile?.teacherId;
+    if (!teacherId) {
+      setDeleteError("Your profile hasn't loaded yet. Please try again in a moment.");
+      return;
+    }
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await deleteOwnAccount(teacherId);
+      snackbar.show({
+        message: "Your account is deleted. You can't log in with it any more.",
+        type: "success",
+      });
+      handleLogout();
+    } catch (error) {
+      console.error("Account deletion failed:", error);
+      setDeleteError(error?.response?.data?.message || "Couldn't delete your account. Please try again.");
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className={styles.wrapper}>
@@ -183,6 +236,14 @@ const TeacherSettings = () => {
         </div>
       </div>
 
+      {/* --- Login email / WhatsApp / mobile, each changed with a code; only the tenant's login channels --- */}
+      <LoginContactSection
+        email={teacherProfile?.email}
+        whatsapp={teacherProfile?.whatsapp}
+        mobile={teacherProfile?.mobile}
+        onChanged={reloadProfileSoon}
+      />
+
       {/* --- PIN login (only when the organisation has it switched on) --- */}
       <PinSection />
 
@@ -242,75 +303,58 @@ const TeacherSettings = () => {
           <h3 className={styles.dangerTitle}>Delete Account</h3>
         </div>
         <p className={styles.dangerDescription}>
-          Permanently deleting your account will remove your profile,
-          applications, and saved jobs. This action is{" "}
-          <strong>irreversible</strong>.
+          Deleting your account closes your login: you'll be logged out, you won't be able to log in
+          with it again, and schools won't find your profile. Your details and applications are kept,
+          so an administrator can restore the account if you ask.
         </p>
 
         {deleteStep === 0 && (
           <Button
-            variant="" filled
+            variant="filled"
             startIcon="deleteIcon"
             onClick={() => setDeleteStep(1)}
             className={styles.requestDeleteButton}
           >
             Request Account Deletion
-          </Button>)}
+          </Button>
+        )}
 
         {deleteStep === 1 && (
           <div className={styles.dangerStepPanel}>
-            <p className={styles.dangerStepTitle}>
-              Confirmation Required — Step 1 of 2
-            </p>
+            <p className={styles.dangerStepTitle}>Confirmation Required — Step 1 of 2</p>
             <label className={styles.dangerCheckLabel}>
               <input
                 type="checkbox"
                 checked={deleteChecks.c1}
-                onChange={(e) =>
-                  setDeleteChecks((p) => ({ ...p, c1: e.target.checked }))
-                }
+                onChange={(e) => setDeleteChecks((p) => ({ ...p, c1: e.target.checked }))}
                 className={styles.dangerCheckbox}
               />
               <span className={styles.dangerCheckText}>
-                I understand that my job applications and profile data will be
-                permanently deleted.
+                I understand I'll be logged out and can't log in with this account (email,
+                WhatsApp, mobile or PIN) any more.
               </span>
             </label>
             <label className={styles.dangerCheckLabel}>
               <input
                 type="checkbox"
                 checked={deleteChecks.c2}
-                onChange={(e) =>
-                  setDeleteChecks((p) => ({ ...p, c2: e.target.checked }))
-                }
+                onChange={(e) => setDeleteChecks((p) => ({ ...p, c2: e.target.checked }))}
                 className={styles.dangerCheckbox}
               />
               <span className={styles.dangerCheckText}>
-                I confirm this is my account and I wish to permanently delete
-                it. This cannot be undone.
+                I understand schools will no longer find my profile or contact me.
               </span>
             </label>
             <div className={styles.dangerStepActions}>
               <Button
                 variant="filled"
                 disabled={!deleteChecks.c1 || !deleteChecks.c2}
-                onClick={() => {
-                  setDeleteStep(2);
-                  setDeleteOtpSent(true);
-                  alert("Demo OTP sent! Use code 123456 to confirm deletion.");
-                }}
+                onClick={() => setDeleteStep(2)}
                 className={styles.primaryDangerButton}
               >
-                Proceed to OTP Verification
+                Continue
               </Button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDeleteStep(0);
-                  setDeleteChecks({ c1: false, c2: false });
-                }}
-                className={styles.secondaryButton}
-              >
+              <button type="button" onClick={resetDelete} className={styles.secondaryButton}>
                 Cancel
               </button>
             </div>
@@ -319,53 +363,36 @@ const TeacherSettings = () => {
 
         {deleteStep === 2 && (
           <div className={styles.dangerStepPanel}>
-            <p className={styles.dangerStepTitle}>
-              OTP Verification — Step 2 of 2
-            </p>
-            {deleteOtpSent && (
-              <p className={styles.otpHint}>
-                A 6-digit OTP has been sent to your registered email and mobile
-                number.
-              </p>
-            )}
-            <FormField label="Enter OTP">
+            <p className={styles.dangerStepTitle}>Final Confirmation — Step 2 of 2</p>
+            <FormField label="Type DELETE to confirm">
               <Input
-                label="Enter OTP"
-                value={deleteOtp}
-                onChange={setDeleteOtp}
+                label="Type DELETE to confirm"
+                value={deleteConfirm}
+                onChange={(value) => {
+                  setDeleteConfirm(value);
+                  setDeleteError("");
+                }}
                 fieldClassName="host-tweak"
-                placeholder="Enter 6-digit OTP"
+                placeholder="DELETE"
+                disabled={deleting}
               />
             </FormField>
-            <p className={styles.otpNote}>
-              For demo: use OTP <strong>123456</strong>
-            </p>
+            {deleteError && (
+              <p className={styles.otpNote} role="alert">
+                {deleteError}
+              </p>
+            )}
             <div className={styles.dangerStepActionsNoTop}>
               <Button
                 variant="filled"
-                onClick={() => {
-                  if (deleteOtp !== "123456") {
-                    alert("Invalid OTP. Try 123456 for demo.");
-                    return;
-                  }
-                  alert("Account deleted. Redirecting...");
-                  handleLogout();
-                }}
+                onClick={() => void confirmDelete()}
+                disabled={deleting || deleteConfirm.trim().toUpperCase() !== "DELETE"}
+                loading={deleting}
                 className={styles.primaryDangerButton}
               >
-                Confirm Delete Account
+                Delete My Account
               </Button>
-
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  setDeleteStep(0);
-                  setDeleteChecks({ c1: false, c2: false });
-                  setDeleteOtp("");
-                  setDeleteOtpSent(false);
-                }}
-                className={styles.secondaryButton}
-              >
+              <Button variant="outlined" onClick={resetDelete} disabled={deleting} className={styles.secondaryButton}>
                 Cancel
               </Button>
             </div>

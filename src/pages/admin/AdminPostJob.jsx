@@ -13,6 +13,8 @@ import { Button } from "@cloudstrytech/ui-components";
 import { validateFields } from "../../lib/textValidation";
 import { generateJobBannerDataUrl } from "../../lib/generateJobImage";
 import styles from "../school/styles/SchoolPostJob.module.css";
+import { createJob } from "../../services/jobService";
+import { buildJobApiPayload } from "../../lib/jobPayload";
 
 const blankForm = {
   // Section 1 — Role & Basic Info
@@ -89,7 +91,37 @@ const blankForm = {
 
 const AdminPostJob = () => {
   const navigate = useNavigate();
-  const { setJobs, currentUser, managedSchools } = useOutletContext();
+  // schools: every School Profile (GET /school-profiles); serverJobsStatus "local" = the
+  // local admin login, which can't reach the job service (jobs then stay in this browser).
+  const { setJobs, currentUser, managedSchools, schools = [], serverJobsStatus, refreshServerJobs } = useOutletContext();
+  const [posting, setPosting] = useState(false);
+  const useJobService = serverJobsStatus !== "local";
+  const schoolIdOf = (name) => schools.find((sc) => sc.name === name)?.id;
+
+  /** POST /jobs (CREATE) for the chosen school. The admin's own job is approved by the service. */
+  const postToJobService = async (publishOption, doneMessage) => {
+    const schoolProfileId = schoolIdOf(form.branchSchool);
+    if (!schoolProfileId) {
+      alert("Select a registered school for this job.");
+      return;
+    }
+    setPosting(true);
+    try {
+      await createJob(
+        buildJobApiPayload({ ...form, publishOption }, { schoolProfileId, postedByUserId: currentUser.id }),
+      );
+      setForm(blankForm);
+      setTimeout(() => refreshServerJobs?.(), 2000);
+      alert(doneMessage);
+      navigate("/admin/manage-jobs");
+    } catch (error) {
+      console.error("Job API error:", error);
+      const message = error?.response?.data?.message;
+      alert(message ? `Couldn't post the job: ${message}` : "Couldn't post the job. Please try again.");
+    } finally {
+      setPosting(false);
+    }
+  };
 
   const [form, setForm] = useState(blankForm);
   const [generating, setGenerating] = useState(false);
@@ -173,6 +205,14 @@ const AdminPostJob = () => {
       return;
     }
     if (!checkContent()) return;
+    if (useJobService) {
+      if (!form.branchSchool) {
+        alert("Select which school this job is for.");
+        return;
+      }
+      void postToJobService("Save as Draft", "Job saved as draft!");
+      return;
+    }
     setJobs((p) => [buildJob("Draft"), ...p]);
     setForm(blankForm);
     alert("Job saved as draft!");
@@ -194,6 +234,11 @@ const AdminPostJob = () => {
       return;
     }
     if (!checkContent()) return;
+    if (useJobService) {
+      if (posting) return;
+      void postToJobService(form.publishOption, scheduled ? "Job scheduled." : "Job published.");
+      return;
+    }
     // The admin is the approver, so their own job skips the approval queue.
     setJobs((p) => [buildJob(scheduled ? "Scheduled" : "Active"), ...p]);
     setForm(blankForm);

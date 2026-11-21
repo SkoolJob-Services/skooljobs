@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PROFILE_REFRESH } from "../../lib/profileRefresh";
 import { getOwnTeacherProfile } from "../../services/teacherprofileService";
 import { config } from "../../config/env";
 
@@ -179,12 +180,11 @@ function mockProfile() {
 }
 
 // Right after signup the profile is still being created from the signup event (Kafka), so a
-// 404 is retried a few times before giving up.
-const RETRY_DELAYS_MS = [1000, 2000, 3000, 4000];
+// 404 is retried (PROFILE_REFRESH: VITE_PROFILE_REFRESH_DELAY_MS × VITE_PROFILE_REFRESH_ATTEMPTS).
 
 /**
  * The signed-in teacher's own profile from GET /teachers/me.
- * Returns { profile, raw, status: "loading" | "ready" | "missing" | "error", error, refresh }.
+ * Returns { profile, raw, status: "loading" | "ready" | "missing" | "error", error, refresh, apply }.
  */
 export function useOwnTeacherProfile() {
   const [state, setState] = useState(() =>
@@ -206,8 +206,10 @@ export function useOwnTeacherProfile() {
       } catch (error) {
         if (current !== run.current) return;
         const notFound = error?.response?.status === 404;
-        if (notFound && attempt < RETRY_DELAYS_MS.length) {
-          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+        // Right after signup the profile is created a moment later: read again, waiting
+        // PROFILE_REFRESH.delayMs, at most PROFILE_REFRESH.attempts more times.
+        if (notFound && attempt < PROFILE_REFRESH.attempts) {
+          await new Promise((resolve) => setTimeout(resolve, PROFILE_REFRESH.delayMs));
           if (current !== run.current) return;
           continue;
         }
@@ -232,5 +234,12 @@ export function useOwnTeacherProfile() {
     load();
   }, [load]);
 
-  return { ...state, refresh };
+  /** Show a profile just read elsewhere (GET /teachers/me data), without reading it again. */
+  const apply = useCallback((data) => {
+    if (!data) return;
+    run.current += 1; // a read still in flight must not overwrite it
+    setState({ profile: normalizeTeacherProfile(data), raw: data, status: "ready", error: null });
+  }, []);
+
+  return { ...state, refresh, apply };
 }

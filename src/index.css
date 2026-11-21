@@ -45,7 +45,9 @@ button, input, optgroup, select, textarea {
   padding: 0;
 }
 
-button, [type="button"], [type="reset"], [type="submit"] {
+/* :where() keeps this reset at zero specificity, so a component's own background
+   (e.g. the active tab on Job Approvals) always wins, whatever order the CSS loads in. */
+:where(button, [type="button"], [type="reset"], [type="submit"]) {
   -webkit-appearance: button;
   background-color: transparent;
   background-image: none;

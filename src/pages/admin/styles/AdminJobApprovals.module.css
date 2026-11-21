@@ -48,8 +48,8 @@
   color: var(--admin-text);
 }
 
-.tabActive,
-.tabActive:hover {
+.tab.tabActive,
+.tab.tabActive:hover {
   background-color: var(--admin-primary);
   color: #fff;
 }
@@ -65,7 +65,7 @@
   text-align: center;
 }
 
-.tabActive .tabCount {
+.tab.tabActive .tabCount {
   background-color: rgba(255, 255, 255, 0.2);
   color: #fff;
 }

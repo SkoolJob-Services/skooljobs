@@ -4,6 +4,7 @@ import { useAuth } from "../features/auth/AuthContext";
 import {
   BriefcaseBusiness,
   ClipboardCheck,
+  GraduationCap,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -14,7 +15,9 @@ import {
 import styles from "./AdminLayout.module.css";
 import { BrandLogo } from "../components/BrandLogo";
 import { isLocalSession } from "../features/auth/localAccounts";
+import { mockApiEnabled } from "../api";
 import { listJobs } from "../services/jobService";
+import { listAllSchoolProfiles } from "../services/schoolProfileService";
 import { fromJobResponse } from "../pages/admin/jobStatus";
 
 const sidebarItems = [
@@ -23,6 +26,7 @@ const sidebarItems = [
   { label: "Job Approvals", icon: ClipboardCheck, path: "/admin/job-approvals" },
   { label: "Post a New Job", icon: PlusCircle, path: "/admin/post-job" },
   { label: "Manage Jobs", icon: BriefcaseBusiness, path: "/admin/manage-jobs" },
+  { label: "Teachers", icon: GraduationCap, path: "/admin/teachers" },
 ];
 
 // Header titles for every admin route, including the ones not in the sidebar.
@@ -34,6 +38,7 @@ const pageTitles = {
   "/admin/schools": "Schools",
   "/admin/post-job": "Post a New Job",
   "/admin/manage-jobs": "Manage Jobs",
+  "/admin/teachers": "Teachers",
 };
 
 const isActivePath = (pathname, path) =>
@@ -85,7 +90,8 @@ const AdminLayout = () => {
   // Jobs posted by schools, from the job service (GET /jobs: ADMIN sees every job of the
   // tenant, newest first). The local admin login (localAccounts) has no server token, so
   // its pages keep using the jobs stored in this browser.
-  const localSession = isLocalSession(session);
+  // Under `npm run dev:mock` the local login uses the in-browser mock services instead.
+  const localSession = isLocalSession(session) && !mockApiEnabled;
   const [serverJobs, setServerJobs] = useState([]);
   const [serverJobsStatus, setServerJobsStatus] = useState(localSession ? "local" : "loading");
 
@@ -110,6 +116,28 @@ const AdminLayout = () => {
   const refreshServerJobs = useCallback(() => {
     if (!localSession) loadServerJobs().then(applyServerJobs);
   }, [localSession, loadServerJobs, applyServerJobs]);
+
+  // Every school of the tenant (GET /school-profiles, ADMIN): names and ids for the
+  // school filters and for posting a job for a school.
+  const [schools, setSchools] = useState([]);
+  useEffect(() => {
+    if (localSession) return undefined;
+    let cancelled = false;
+    listAllSchoolProfiles()
+      .then((list) => {
+        if (cancelled) return;
+        setSchools(
+          list
+            .filter((sp) => sp.schoolProfileId && sp.schoolName)
+            .map((sp) => ({ id: sp.schoolProfileId, name: sp.schoolName, status: sp.schoolProfileStatus, city: sp.address?.city || "" }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        );
+      })
+      .catch((error) => console.error("Failed to load schools:", error));
+    return () => {
+      cancelled = true;
+    };
+  }, [localSession]);
 
   useEffect(() => {
     if (localSession) return undefined;
@@ -150,21 +178,31 @@ const AdminLayout = () => {
   const pageTitle =
     Object.entries(pageTitles).find(([path]) =>
       isActivePath(location.pathname, path),
-    )?.[1] || "Platform Admin";
+    )?.[1] || "Admin";
 
   // Jobs this admin posted for schools (Manage Jobs), and the schools they can post for:
   // the account's own list plus every school that already has a job.
-  const myJobs = jobs.filter((j) => j.schoolEmail === currentUser.email);
+  // This browser's list ("skooljobs_jobs") is shared with the school pages, which keep
+  // copies of the server's jobs there (UUID ids). Once the server's list is loaded those
+  // copies are dropped, so a job never shows twice (one copy stuck in "Pending Approval").
+  const UUID_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const serverIds = new Set(serverJobs.map((j) => String(j.id)));
+  const localOnlyJobs =
+    serverJobsStatus === "ready"
+      ? jobs.filter((j) => !serverIds.has(String(j.id)) && !UUID_ID.test(String(j.id)))
+      : jobs;
+  const myJobs = localOnlyJobs.filter((j) => j.schoolEmail === currentUser.email);
   const managedSchools = Array.from(
     new Set([
-      ...(currentUser.managedSchools || []),
-      ...jobs.map((j) => j.schoolName).filter(Boolean),
+      ...schools.map((sc) => sc.name),
+      ...(localSession ? currentUser.managedSchools || [] : []),
+      ...[...serverJobs, ...localOnlyJobs].map((j) => j.schoolName).filter(Boolean),
     ]),
-  );
+  ).sort((a, b) => a.localeCompare(b));
 
   // Lists across the admin pages: the schools' jobs from the server, then the jobs this
   // browser keeps (the admin's own posts, and everything when logged in locally).
-  const allJobs = [...serverJobs, ...jobs];
+  const allJobs = [...serverJobs, ...localOnlyJobs];
 
   const outletCtx = {
     jobs: allJobs,
@@ -172,6 +210,7 @@ const AdminLayout = () => {
     myJobs,
     currentUser,
     managedSchools,
+    schools,
     serverJobs,
     setServerJobs,
     serverJobsStatus,
@@ -179,7 +218,7 @@ const AdminLayout = () => {
   };
 
   const navList = (
-    <nav className={styles.nav} aria-label="Platform admin">
+    <nav className={styles.nav} aria-label="Admin">
       {sidebarItems.map((item) => {
         const Icon = item.icon;
         const isActive = isActivePath(location.pathname, item.path);
@@ -216,7 +255,7 @@ const AdminLayout = () => {
         <div className={styles.brandRow}>
           <div className={styles.brandText}>
             <BrandLogo onDark height={44} />
-            <p className={styles.brandSub}>Platform Admin</p>
+            <p className={styles.brandSub}>Admin</p>
           </div>
           <button
             type="button"
@@ -251,7 +290,7 @@ const AdminLayout = () => {
               <Menu size={20} />
             </button>
             <div className={styles.headerTitles}>
-              <p className={styles.headerContext}>Platform Admin</p>
+              <p className={styles.headerContext}>Admin</p>
               <h1 className={styles.headerTitle}>{pageTitle}</h1>
             </div>
           </div>

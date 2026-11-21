@@ -298,7 +298,7 @@ describe("link step", () => {
     ["409 SCH_007 (school already has an admin)", serviceError(409, "SCH_007")],
     ["409 SCH_008 (invite linked to another school)", serviceError(409, "SCH_008")],
     ["409 SCH_009 (user already manages a school)", serviceError(409, "SCH_009")],
-    ["403 (not a Platform Admin)", serviceError(403)],
+    ["403 (not an ADMIN)", serviceError(403)],
     ["401 (session ended)", serviceError(401)],
     ["400", serviceError(400, "VAL_001")],
     ["404 without SCH_006", serviceError(404)],

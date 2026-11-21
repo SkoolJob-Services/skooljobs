@@ -400,7 +400,7 @@ const AdminInviteSchools = () => {
                 exists only in this browser and has no backend credentials.
                 The invite service rejects it, so no invitation can be created
                 or emailed. To invite a school, log out and sign in with a
-                Platform Admin account registered in the SkoolJobs backend.
+                ADMIN account registered in the SkoolJobs backend.
               </span>
             </div>
           )}
@@ -422,7 +422,7 @@ const AdminInviteSchools = () => {
               <span>
                 The details are valid, but no school or invitation was created.
                 The local demo admin account can't call the invite service.
-                Log out and sign in with a backend Platform Admin account to
+                Log out and sign in with a backend ADMIN account to
                 create the invitation.
               </span>
             </div>

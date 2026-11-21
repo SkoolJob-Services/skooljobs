@@ -335,6 +335,16 @@
   font-size: 0.9rem;
   color: var(--auth-muted);
 }
+.pin-panel__notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-surface-variant, #eef3f8);
+}
 .pin-panel .form-stack {
   max-width: 360px;
 }
@@ -367,4 +377,27 @@
 .device-list__this {
   font-size: 0.8125rem;
   color: var(--auth-muted);
+}
+
+/* Settings → Login email & WhatsApp (features/account/LoginContactSection). */
+.login-contact__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border, #d1dae5);
+}
+.login-contact__row > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  word-break: break-word;
+}
+.login-contact__label {
+  font-size: 0.8125rem;
+  color: var(--auth-muted);
+}
+.login-contact__form {
+  padding: 12px 0 4px;
 }

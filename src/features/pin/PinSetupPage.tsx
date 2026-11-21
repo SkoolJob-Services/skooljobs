@@ -138,12 +138,31 @@ export function PinSetupPage() {
       } else if (isApiError(error) && error.code === "PIN_LOCKED") {
         setNotice("Your PIN is locked after too many wrong tries. Set a new one.");
         setMode("set");
+      } else if (isApiError(error) && error.code === "PIN_NEEDS_OTP") {
+        // Trusting a device needs an OTP login in the last few minutes (e.g. opened later from Settings).
+        setNeedsOtp(true);
+        setFormError("For your safety, adding this device needs a fresh login with a code.");
       } else {
         setFormError(isApiError(error) ? error.message : "Something went wrong. Please try again.");
       }
     } finally {
       setSubmitting(false);
     }
+  }
+
+  /**
+   * Sign out and log in again with a code, then come back here: to set a PIN (forgotPin) or
+   * to trust this device with the existing one.
+   */
+  async function reLoginWithCode(settingNewPin: boolean) {
+    const identifier = session?.identifier;
+    await signOut();
+    navigate("/login", {
+      replace: true,
+      state: settingNewPin
+        ? { useOtp: true, forgotPin: true, settingPin: !hadPin, identifier, from: next }
+        : { useOtp: true, identifier, from: next },
+    });
   }
 
   const skip = (
@@ -190,9 +209,15 @@ export function PinSetupPage() {
             autoFocus
           />
           <FormAlert message={formError} />
-          <Button type="submit" variant="filled" fullWidth loading={submitting} disabled={submitting || pin.length !== 6}>
-            Use PIN on this device
-          </Button>
+          {needsOtp ? (
+            <Button type="button" variant="filled" fullWidth onClick={() => void reLoginWithCode(false)}>
+              Log in with a code to add this device
+            </Button>
+          ) : (
+            <Button type="submit" variant="filled" fullWidth loading={submitting} disabled={submitting || pin.length !== 6}>
+              Use PIN on this device
+            </Button>
+          )}
           <p className="inline-hint">
             <button
               type="button"
@@ -240,14 +265,7 @@ export function PinSetupPage() {
             type="button"
             variant="filled"
             fullWidth
-            onClick={async () => {
-              const identifier = session?.identifier;
-              await signOut();
-              navigate("/login", {
-                replace: true,
-                state: { useOtp: true, forgotPin: true, settingPin: !hadPin, identifier, from: next },
-              });
-            }}
+            onClick={() => void reLoginWithCode(true)}
           >
             Log in with a code to set your PIN
           </Button>

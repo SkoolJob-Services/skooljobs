@@ -1,0 +1,217 @@
+/* Platform Admin → Teachers. Shares AdminUi.module.css for the page, cards, notices and chips. */
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted, #5b5f66);
+  border-bottom: 1px solid var(--color-border, #d1dae5);
+}
+
+.row:hover {
+  background: var(--color-light, #e7f6ff);
+}
+
+.td {
+  padding: 12px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border, #d1dae5);
+}
+
+.tdActions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.tdActions button + button {
+  margin-left: 12px;
+}
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--color-light, #e7f6ff);
+  color: var(--color-primary, #044890);
+  font-weight: 700;
+}
+
+.sub {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-muted, #5b5f66);
+}
+
+.detailRow td {
+  padding: 0 12px 16px;
+  border-bottom: 1px solid var(--color-border, #d1dae5);
+}
+
+.details {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--color-bg, #f6f9fc);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 20px;
+  margin: 0;
+}
+
+.fact dt {
+  font-size: 0.75rem;
+  color: var(--color-muted, #5b5f66);
+}
+
+.fact dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.summary {
+  margin: 14px 0 0;
+  line-height: 1.5;
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.6;
+}
+
+.groupTitle {
+  margin: 16px 0 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary, #044890);
+}
+
+.editorHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.iconButton {
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-muted, #5b5f66);
+  cursor: pointer;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.textarea {
+  min-height: 80px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, #d1dae5);
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-muted, #5b5f66);
+}
+
+.error {
+  margin: 0;
+  color: var(--md-sys-color-error, #b3261e);
+  font-size: 0.875rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+@media (max-width: 760px) {
+  .table thead {
+    display: none;
+  }
+  .table tr,
+  .table td {
+    display: block;
+  }
+  .td {
+    border-bottom: 0;
+    padding: 6px 12px;
+  }
+  .td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--color-muted, #5b5f66);
+  }
+  .tdActions {
+    text-align: left;
+  }
+}

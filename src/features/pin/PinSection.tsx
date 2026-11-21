@@ -48,6 +48,9 @@ export function PinSection() {
   if (!settings.enabled || failed) return null;
 
   const setNewPin = () => navigate("/pin/setup", { state: { returnTo: location.pathname, forgotPin: true } });
+  // Trust this device with the existing PIN (the same screen as right after an OTP login).
+  const useOnThisDevice = () => navigate("/pin/setup", { state: { returnTo: location.pathname } });
+  const trustedHere = !!status?.devices.some((device) => thisDevice.includes(device.deviceId));
 
   async function change(event: FormEvent) {
     event.preventDefault();
@@ -157,6 +160,16 @@ export function PinSection() {
       ) : (
         <>
           <p className="panel__text">Your PIN works on the devices below. Remove any you no longer use.</p>
+          {!trustedHere && (
+            <div className="pin-panel__notice">
+              <p className="panel__text">
+                This device doesn't use your PIN yet. Add it to log in here with the same PIN, without a code.
+              </p>
+              <Button variant="filled" size="sm" onClick={useOnThisDevice}>
+                Use PIN on this device
+              </Button>
+            </div>
+          )}
           <ul className="device-list">
             {status.devices.map((device) => (
               <li key={device.deviceId} className="device-list__item">

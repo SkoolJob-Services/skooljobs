@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from "react";
+import { refreshUntil } from "../../lib/profileRefresh";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "@cloudstrytech/ui-components/styles.css";
 import { Button, Input, Select } from "@cloudstrytech/ui-components";
@@ -1795,20 +1796,15 @@ const TeacherProfile = () => {
         return Array.isArray(server) && sameIds(server, value);
       });
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 500 : 750));
-      try {
-        const { data } = await getOwnTeacherProfile();
-        if (data && (sentLists.length === 0 ? attempt > 0 : stored(data))) {
-          applyBackendProfile(data);
-          return data;
-        }
-      } catch (error) {
-        if (error?.response?.status !== 404) {
-          console.error("Failed to refresh teacher profile:", error);
-          return null;
-        }
-      }
+    // Waits PROFILE_REFRESH.delayMs before each read, at most PROFILE_REFRESH.attempts reads
+    // (VITE_PROFILE_REFRESH_DELAY_MS / VITE_PROFILE_REFRESH_ATTEMPTS, default 2500 ms × 3).
+    const { result, done } = await refreshUntil(
+      async () => (await getOwnTeacherProfile()).data,
+      (data) => Boolean(data) && (sentLists.length === 0 || stored(data)),
+    );
+    if (done) {
+      applyBackendProfile(result);
+      return result;
     }
     return null;
   };

@@ -3,9 +3,13 @@ import { Building2 } from "lucide-react";
 import styles from "./styles/AdminSchools.module.css";
 
 const AdminSchools = () => {
-  const { jobs } = useOutletContext();
+  // schools: every School Profile (GET /school-profiles), so schools without jobs are listed too.
+  const { jobs, schools: registered = [] } = useOutletContext();
 
   const schoolMap = new Map();
+  registered.forEach((sc) => {
+    schoolMap.set(sc.name, { name: sc.name, email: sc.city || "", total: 0, pending: 0, approved: 0, live: 0, rejected: 0 });
+  });
   jobs.forEach((job) => {
     const name = job.schoolName || "Unknown School";
     if (!schoolMap.has(name)) {
@@ -35,13 +39,12 @@ const AdminSchools = () => {
       <div className={styles.pageHeader}>
         <h2 className={styles.title}>Schools</h2>
         <p className={styles.subtitle}>
-          Derived from submitted jobs — every school that has posted at least
-          one job on the platform.
+          Every registered school, with the jobs it has submitted.
         </p>
       </div>
 
       {schools.length === 0 ? (
-        <p className={styles.emptyText}>No schools have submitted a job yet.</p>
+        <p className={styles.emptyText}>No schools yet.</p>
       ) : (
         <div className={styles.grid}>
           {schools.map((s) => (

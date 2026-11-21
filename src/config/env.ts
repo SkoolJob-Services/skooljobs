@@ -43,6 +43,12 @@ function resolveTenantCode(): string | undefined {
   return pick(runtime.TENANT_CODE, env.VITE_TENANT_CODE) || undefined;
 }
 
+/** A whole number of at least `min`, else the default. */
+function positiveInt(value: string | undefined, fallback: number, min = 1): number {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  return Number.isFinite(parsed) && parsed >= min ? parsed : fallback;
+}
+
 export const config = {
   /** Signup service (login, signup, invites), e.g. /api/signup behind the edge nginx. */
   apiBaseUrl: (pick(runtime.API_BASE_URL, env.VITE_API_BASE_URL) ?? "/api/signup").replace(/\/$/, ""),
@@ -50,4 +56,11 @@ export const config = {
   tenantCode: resolveTenantCode(),
   defaultCountryCode: pick(runtime.DEFAULT_COUNTRY_CODE, env.VITE_DEFAULT_COUNTRY_CODE) ?? "+91",
   useMockApi: pick(runtime.USE_MOCK_API, env.VITE_USE_MOCK_API) === "true",
+  /**
+   * Re-reading the profile after a save (the services store it a moment after their 202):
+   * wait this long before each read (VITE_PROFILE_REFRESH_DELAY_MS, default 2500 ms)…
+   */
+  profileRefreshDelayMs: positiveInt(env.VITE_PROFILE_REFRESH_DELAY_MS, 2500, 0),
+  /** …and read at most this many times (VITE_PROFILE_REFRESH_ATTEMPTS, default 3). */
+  profileRefreshAttempts: positiveInt(env.VITE_PROFILE_REFRESH_ATTEMPTS, 3),
 } as const;

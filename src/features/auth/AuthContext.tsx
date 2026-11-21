@@ -21,6 +21,8 @@ interface AuthContextValue {
   signIn(response: LoginResponse, identifier: string): void;
   /** Call /auth/logout and clear the session (cleared even if the call fails). */
   signOut(): Promise<void>;
+  /** The login email changed (verified with a code): later logins use `identifier`. */
+  changeLoginIdentifier(identifier: string): void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -90,6 +92,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearSession]);
 
+  const changeLoginIdentifier = useCallback((identifier: string) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    const next: AuthSession = { ...current, identifier };
+    sessionStore.save(next);
+    syncLegacyUser(next);
+    // The token still carries the old email until the next login: the pages show the new one.
+    if (identifier.includes("@")) {
+      try {
+        const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
+        localStorage.setItem("currentUser", JSON.stringify({ ...user, email: identifier }));
+        window.dispatchEvent(new Event("storage"));
+      } catch {
+        // storage unavailable
+      }
+    }
+    setSession(next);
+  }, []);
+
   const value = useMemo<AuthContextValue>(() => {
     const { role, roleCodes } = roleFromToken(session?.accessToken);
     const userKey = session
@@ -104,8 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userKey,
       signIn,
       signOut,
+      changeLoginIdentifier,
     };
-  }, [session, signIn, signOut]);
+  }, [session, signIn, signOut, changeLoginIdentifier]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

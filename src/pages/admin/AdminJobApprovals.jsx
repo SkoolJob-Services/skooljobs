@@ -160,7 +160,7 @@ const AdminJobApprovals = () => {
           <Info size={16} aria-hidden="true" />
           <span>
             You're logged in with the local admin account, which can't reach the job service.
-            Log in with a platform admin account (one-time code) to review the schools' jobs.
+            Log in with an ADMIN account (one-time code) to review the schools' jobs.
           </span>
         </div>
       )}
