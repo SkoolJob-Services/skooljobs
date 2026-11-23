@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useTenant } from "../../features/tenant/TenantContext";
 import { listJobs } from "../../services/jobService";
 import { getSchoolProfile } from "../../services/schoolProfileService";
 import { config } from "../../config/env";
 import { SAMPLE_JOBS } from "../data/sampleJobs";
+import { sessionStore } from "../../features/auth/sessionStore";
 
 // Only jobs that are live and approved are shown on the public website.
 // Job statuses (job-contracts): ACTIVE, or SCHEDULED once its publishAt has passed.
@@ -32,10 +34,22 @@ export const mapPublicJob = (job) => ({
       : [],
   applicants: job.applicantsCount || 0,
   postedDate: job.postedDate || null,
+  // The job's own picture, when the job service sends one; none = the card has no picture.
+  image: job.imageUrl || job.coverImageUrl || job.image || null,
 });
 
-/** Live jobs from GET /jobs (the same Job Posting service the dashboards use). */
+/**
+ * Live jobs from GET /jobs (the same Job Posting service the dashboards use). Works without a
+ * login: the job service answers visitors with live, approved jobs of the tenant in X-Tenant-Id.
+ */
 export function usePublicJobs() {
+  // Visitors (no login) are answered for this deployment's tenant (X-Tenant-Id, from
+  // GET /tenants/current): wait until it is known. A logged-in user's token says the tenant.
+  const { tenant, status: tenantStatus } = useTenant();
+  const tenantId = tenant?.tenantId || null;
+  const loggedIn = Boolean(sessionStore.load()?.accessToken);
+  const canLoad = config.useMockApi || loggedIn || Boolean(tenantId);
+
   // `npm run dev:mock` has no Job Posting service: show the demo jobs instead.
   const [state, setState] = useState(() =>
     config.useMockApi
@@ -44,6 +58,7 @@ export function usePublicJobs() {
   );
 
   useEffect(() => {
+    if (!canLoad) return undefined;
     let cancelled = false;
     listJobs()
       .then(({ data }) => {
@@ -67,8 +82,12 @@ export function usePublicJobs() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canLoad, tenantId]);
 
+  // The tenant couldn't be loaded: there is nothing to ask the job service for.
+  if (!canLoad && tenantStatus === "error") {
+    return { jobs: [], loading: false, error: new Error("The organisation couldn't be loaded.") };
+  }
   return state;
 }
 
@@ -80,6 +99,9 @@ const schoolNames = new Map();
  * (GET /school-profiles/{id}). Best effort - a failed lookup leaves the name empty.
  */
 async function withSchoolNames(jobs) {
+  // GET /school-profiles/{id} needs a login; the job service already sends schoolName, so a
+  // visitor's list keeps what it has.
+  if (!sessionStore.load()?.accessToken) return null;
   const ids = [...new Set(jobs.map((j) => j.schoolProfileId).filter((id) => id && !schoolNames.has(id)))];
   if (ids.length === 0 && jobs.every((j) => j.school || !j.schoolProfileId)) return null;
   await Promise.all(

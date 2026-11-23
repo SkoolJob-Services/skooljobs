@@ -19,7 +19,8 @@ import {
   X,
 } from "lucide-react";
 import Topbar from "../components/topbar";
-import { withoutDemoApplicants, withoutDemoInterviews, withoutDemoJobs } from "../lib/schooldata";
+import { withoutDemoJobs } from "../lib/schooldata";
+import { useSchoolApplications } from "../features/school/schoolApplications";
 import { useImageUpload } from "../lib/useImageUpload";
 import { listJobs } from "../services/jobService";
 import { BrandLogo } from "../components/BrandLogo";
@@ -109,22 +110,11 @@ const SchoolLayout = () => {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState(null);
 
-  const [applicants, setApplicants] = useState(() => {
-    try {
-      const parsed = withoutDemoApplicants(JSON.parse(localStorage.getItem("skooljobs_applicants") || "[]"));
-      return parsed.map((a) => a.status === "Applied" ? { ...a, status: "Not Reviewed" } : a);
-    } catch {
-      return [];
-    }
-  });
 
   useEffect(() => {
     localStorage.setItem("skooljobs_jobs", JSON.stringify(jobs));
   }, [jobs]);
 
-  useEffect(() => {
-    localStorage.setItem("skooljobs_applicants", JSON.stringify(applicants));
-  }, [applicants]);
 
   // The School Admin's own school (GET /school-profiles/me): name and logo for the sidebar.
   const { profile: schoolProfile, refresh: refreshSchoolProfile } = useOwnSchoolProfile();
@@ -139,17 +129,6 @@ const SchoolLayout = () => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   // Real notifications arrive as toasts from the notification socket.
   const [notifications, setNotifications] = useState([]);
-  const [interviews, setInterviews] = useState(() => {
-    try {
-      return withoutDemoInterviews(JSON.parse(localStorage.getItem("skooljobs_interviews") || "[]"));
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem("skooljobs_interviews", JSON.stringify(interviews));
-  }, [interviews]);
 
   const currentUser = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("currentUser") || "{}"); } catch { return {}; }
@@ -183,6 +162,20 @@ const SchoolLayout = () => {
     };
   }, [ownSchoolId, currentUser.id]);
 
+  // Applicants and interviews of the school's jobs (application service). A School Member has no
+  // own school profile: their jobs say which school they post for.
+  const applicationsSchoolId = ownSchoolId || jobs.find((j) => j.schoolProfileId)?.schoolProfileId || null;
+  const {
+    applicants,
+    interviews,
+    status: applicationsStatus,
+    refresh: refreshApplications,
+    changeApplicantStatus,
+    toggleSaved,
+    saveInterview,
+    setInterviewStatus,
+  } = useSchoolApplications(applicationsSchoolId, jobs);
+
   if (!localStorage.getItem("currentUser")) {
     return <Navigate to="/app" replace />;
   }
@@ -193,8 +186,10 @@ const SchoolLayout = () => {
 
   // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
   const handleLogout = async () => {
+    // To the website home page first: ending the session while still on a protected page
+    // would make its route guard send the user to /login instead.
+    navigate("/", { replace: true });
     await signOut();
-    navigate("/login", { replace: true });
   };
 
   const handleLogoUpload = async (e) => {
@@ -236,9 +231,7 @@ const SchoolLayout = () => {
     setNotifications((p) => p.filter((n) => n.id !== id));
   };
 
-  const handleSaveCandidate = (id) => {
-    setApplicants((p) => p.map((a) => (a.id === id ? { ...a, saved: !a.saved } : a)));
-  };
+  const handleSaveCandidate = (id) => toggleSaved(id);
 
   const notificationDropdown = showNotifDropdown && (
     <div className={styles.notifDropdown}>
@@ -298,14 +291,17 @@ const SchoolLayout = () => {
     jobsLoading,
     jobsError,
     applicants,
-    setApplicants,
+    applicationsStatus,
+    refreshApplications,
+    changeApplicantStatus,
     logoImage,
     schoolProfile,
     refreshSchoolProfile,
     notifications,
     setNotifications,
     interviews,
-    setInterviews,
+    saveInterview,
+    setInterviewStatus,
     currentUser,
     schoolName,
     handleLogout,
@@ -389,6 +385,11 @@ const SchoolLayout = () => {
             unreadCount={unreadCount}
             onNotificationClick={() => setShowNotifDropdown((v) => !v)}
             notificationDropdown={notificationDropdown}
+            fallbackName={schoolName}
+            onSettingsClick={() => navigate("/school/settings")}
+            onProfileClick={() => navigate(currentUser.isMember ? "/school/view-profile" : "/school/profile")}
+            profileLabel={currentUser.isMember ? "View Institute Profile" : "Institute Profile"}
+            onLogout={handleLogout}
           />
 
           <div className={styles.mobileNavWrap}>
@@ -427,6 +428,10 @@ const SchoolLayout = () => {
                     </button>
                   );
                 })}
+                <button type="button" onClick={handleLogout} className={styles.mobileNavButton}>
+                  <LogOut size={17} />
+                  Logout
+                </button>
               </div>
             )}
           </div>

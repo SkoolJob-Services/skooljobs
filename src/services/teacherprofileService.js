@@ -77,3 +77,13 @@ export const activateTeacher = async (teacherId) => {
     if (mockApiEnabled) return mockTeacherService.setStatus(teacherId, "ACTIVE");
     return teacherApi.activateTeacher({ teacher_id: teacherId });
 };
+
+// POST /teachers/batch { teacher_ids } — profiles of several teachers (a school's applicants and
+// interviews; School Admin / Member / ADMIN). Unknown ids are left out. Called directly until
+// @skooljobs/teacher-api is regenerated with getTeachersByIds.
+export const getTeachersByIds = async (teacherIds) => {
+    const ids = [...new Set((teacherIds || []).filter(Boolean).map(String))].slice(0, 100);
+    if (ids.length === 0) return { status: 200, data: [] };
+    if (mockApiEnabled) return mockTeacherService.getTeachersByIds(ids);
+    return serviceHttp.post(`${API_BASE_PATHS.teacherProfile}/teachers/batch`, { teacher_ids: ids });
+};

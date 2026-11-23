@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { refreshUntil } from "../../lib/profileRefresh";
+import { refreshAfterSave, saveStartedAt } from "../../lib/profileRefresh";
+import { fetchOwnTeacherProfile } from "../../features/teacher/ownTeacherProfile";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "@cloudstrytech/ui-components/styles.css";
 import { Button, Input, Select } from "@cloudstrytech/ui-components";
@@ -42,7 +43,6 @@ import { DocumentImage } from "../../components/DocumentImage";
 import { validateText, validateFields } from "../../lib/textValidation";
 import {
   updateTeacherProfile,
-  getOwnTeacherProfile,
 } from "../../services/teacherprofileService";
 
 const { coursesByDegree: coursesByDegreeRaw, ...qualificationOptionsFlatRaw } =
@@ -189,6 +189,24 @@ const blankQualification = {
   universityOther: "",
   college: "",
   collegeOther: "",
+};
+
+/** Today as YYYY-MM-DD in the browser's time zone (a date input's max). */
+const todayInput = () => {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
+/** A date from the API ("2024-06-01", "2024-06-01T00:00:00Z" or [2024, 6, 1]) as YYYY-MM-DD. */
+const toDateInput = (value) => {
+  if (!value) return "";
+  if (Array.isArray(value)) {
+    const [y, m = 1, d = 1] = value;
+    return y ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : "";
+  }
+  const text = String(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : "";
 };
 
 const blankExperience = {
@@ -362,6 +380,9 @@ const TeacherProfile = () => {
     return [];
   });
   const [editingExperienceIndex, setEditingExperienceIndex] = useState(null);
+  // Achievements: the award / course being edited in the form above its list (null = adding).
+  const [editingAwardIndex, setEditingAwardIndex] = useState(null);
+  const [editingCourseIndex, setEditingCourseIndex] = useState(null);
   const [showExperienceForm, setShowExperienceForm] = useState(false);
   const experienceFormRef = useRef(null);
 
@@ -517,8 +538,9 @@ const TeacherProfile = () => {
           currentEmployer: Boolean(e.is_current_employer),
           board: e.board || "",
           boardOther: "",
-          startDate: e.start_date || "",
-          endDate: e.end_date || "",
+          startDate: toDateInput(e.start_date),
+          // A current employer has no end date.
+          endDate: e.is_current_employer ? "" : toDateInput(e.end_date),
           mainSubject: e.main_subject || "",
           mainSubjectOther: "",
           otherSubjects: e.other_subjects || "",
@@ -606,8 +628,9 @@ const TeacherProfile = () => {
   useEffect(() => {
     if (!storedUser.id) return;
     let cancelled = false;
-    getOwnTeacherProfile()
-      .then(({ data }) => {
+    // Shared with the layout's read (one GET /teachers/me for both).
+    fetchOwnTeacherProfile()
+      .then((data) => {
         if (cancelled || !data) return;
         applyBackendProfile(data);
       })
@@ -974,7 +997,14 @@ const TeacherProfile = () => {
   const isSchoolLevelQualification = Boolean(qualificationDraft.classLevel);
 
   const updateExperience = (field, value) => {
-    setExperienceDraft((prev) => ({ ...prev, [field]: value }));
+    setExperienceDraft((prev) => {
+      const next = { ...prev, [field]: value };
+      // Current employer: still working there, so no end date.
+      if (field === "currentEmployer" && value) next.endDate = "";
+      // A start date after the chosen end date clears the end date.
+      if (field === "startDate" && value && next.endDate && next.endDate < value) next.endDate = "";
+      return next;
+    });
   };
 
   const saveQualificationDraft = async () => {
@@ -1098,27 +1128,31 @@ const TeacherProfile = () => {
       return false;
     }
 
-    if (
-      experienceDraft.startDate &&
-      new Date(experienceDraft.startDate) > new Date()
-    ) {
+    // YYYY-MM-DD strings compare as dates; "today" is the browser's local date.
+    const today = todayInput();
+    const endDate = experienceDraft.currentEmployer ? "" : experienceDraft.endDate;
+
+    if (!experienceDraft.startDate) {
+      alert("Please enter the start date.");
+      return false;
+    }
+
+    if (experienceDraft.startDate > today) {
       alert("Start date cannot be in the future.");
       return false;
     }
 
-    if (
-      experienceDraft.startDate &&
-      experienceDraft.endDate &&
-      new Date(experienceDraft.endDate) < new Date(experienceDraft.startDate)
-    ) {
+    if (!experienceDraft.currentEmployer && !endDate) {
+      alert("Please enter the end date, or tick Current Employer.");
+      return false;
+    }
+
+    if (endDate && endDate < experienceDraft.startDate) {
       alert("End date cannot be before start date.");
       return false;
     }
 
-    if (
-      experienceDraft.endDate &&
-      new Date(experienceDraft.endDate) > new Date()
-    ) {
+    if (endDate && endDate > today) {
       alert("End date cannot be in the future.");
       return false;
     }
@@ -1688,15 +1722,14 @@ const TeacherProfile = () => {
       return;
     }
 
-    const updatedAwards = [...savedAwards, award];
+    const editing = editingAwardIndex;
+    const updatedAwards =
+      editing !== null
+        ? savedAwards.map((item, index) => (index === editing ? award : item))
+        : [...savedAwards, award];
     setSavedAwards(updatedAwards);
-    setResumeData((prev) => ({
-      ...prev,
-      awardType: "",
-      awardName: "",
-      awardBy: "",
-      awardYear: "",
-    }));
+    setEditingAwardIndex(null);
+    clearAwardForm();
 
     try {
       await submitSections(["achievements"], {
@@ -1704,7 +1737,48 @@ const TeacherProfile = () => {
       });
     } catch (error) {
       console.error("Failed to save achievement:", error);
-      alert("Award was added, but saving it to the server failed. Please try again.");
+      alert(
+        editing !== null
+          ? "Award was updated, but saving it to the server failed. Please try again."
+          : "Award was added, but saving it to the server failed. Please try again.",
+      );
+    }
+  };
+
+  const clearAwardForm = () =>
+    setResumeData((prev) => ({ ...prev, awardType: "", awardName: "", awardBy: "", awardYear: "" }));
+
+  /** Edit: the saved award goes into the form; "Update Award" saves it back in its place. */
+  const editAward = (index) => {
+    const award = savedAwards[index];
+    setResumeData((prev) => ({
+      ...prev,
+      awardType: award.type || "",
+      awardName: award.name || "",
+      awardBy: award.by || "",
+      awardYear: award.year ? String(award.year) : "",
+    }));
+    setEditingAwardIndex(index);
+  };
+
+  const cancelAwardEdit = () => {
+    setEditingAwardIndex(null);
+    clearAwardForm();
+  };
+
+  const removeAward = async (index) => {
+    if (!window.confirm("Delete this award?")) return;
+    const updatedAwards = savedAwards.filter((_, i) => i !== index);
+    setSavedAwards(updatedAwards);
+    if (editingAwardIndex === index) cancelAwardEdit();
+    else if (editingAwardIndex !== null && editingAwardIndex > index) setEditingAwardIndex(editingAwardIndex - 1);
+    try {
+      await submitSections(["achievements"], {
+        achievements: toBackendAchievements(updatedAwards, savedCourses),
+      });
+    } catch (error) {
+      console.error("Failed to delete achievement:", error);
+      alert("Removed here, but the server update failed. Please try again.");
     }
   };
 
@@ -1726,15 +1800,14 @@ const TeacherProfile = () => {
       return;
     }
 
-    const updatedCourses = [...savedCourses, course];
+    const editing = editingCourseIndex;
+    const updatedCourses =
+      editing !== null
+        ? savedCourses.map((item, index) => (index === editing ? course : item))
+        : [...savedCourses, course];
     setSavedCourses(updatedCourses);
-    setResumeData((prev) => ({
-      ...prev,
-      courseType: "",
-      courseName: "",
-      conductedBy: "",
-      courseYear: "",
-    }));
+    setEditingCourseIndex(null);
+    clearCourseForm();
 
     try {
       await submitSections(["achievements"], {
@@ -1742,7 +1815,48 @@ const TeacherProfile = () => {
       });
     } catch (error) {
       console.error("Failed to save achievement:", error);
-      alert("Course was added, but saving it to the server failed. Please try again.");
+      alert(
+        editing !== null
+          ? "Course was updated, but saving it to the server failed. Please try again."
+          : "Course was added, but saving it to the server failed. Please try again.",
+      );
+    }
+  };
+
+  const clearCourseForm = () =>
+    setResumeData((prev) => ({ ...prev, courseType: "", courseName: "", conductedBy: "", courseYear: "" }));
+
+  /** Edit: the saved course goes into the form; "Update Course" saves it back in its place. */
+  const editCourse = (index) => {
+    const course = savedCourses[index];
+    setResumeData((prev) => ({
+      ...prev,
+      courseType: course.type || "",
+      courseName: course.name || "",
+      conductedBy: course.by || "",
+      courseYear: course.year ? String(course.year) : "",
+    }));
+    setEditingCourseIndex(index);
+  };
+
+  const cancelCourseEdit = () => {
+    setEditingCourseIndex(null);
+    clearCourseForm();
+  };
+
+  const removeCourse = async (index) => {
+    if (!window.confirm("Delete this course?")) return;
+    const updatedCourses = savedCourses.filter((_, i) => i !== index);
+    setSavedCourses(updatedCourses);
+    if (editingCourseIndex === index) cancelCourseEdit();
+    else if (editingCourseIndex !== null && editingCourseIndex > index) setEditingCourseIndex(editingCourseIndex - 1);
+    try {
+      await submitSections(["achievements"], {
+        achievements: toBackendAchievements(savedAwards, updatedCourses),
+      });
+    } catch (error) {
+      console.error("Failed to delete achievement:", error);
+      alert("Removed here, but the server update failed. Please try again.");
     }
   };
 
@@ -1769,8 +1883,9 @@ const TeacherProfile = () => {
       ...extraFields,
     };
 
+    const savedAt = saveStartedAt();
     await updateTeacherProfile(payload);
-    await refreshProfileFromBackend(extraFields);
+    await refreshProfileFromBackend(extraFields, savedAt);
   };
 
   // Polls GET /teachers/me after a save. The update is processed asynchronously (202), so
@@ -1778,7 +1893,7 @@ const TeacherProfile = () => {
   // what was just added disappear (or a deleted item come back). So the server copy is only
   // applied once the lists that were sent (resumes, qualifications, ...) are on the server;
   // until then the screen keeps what was just saved.
-  const refreshProfileFromBackend = async (sent = {}) => {
+  const refreshProfileFromBackend = async (sent = {}, savedAt = saveStartedAt()) => {
     const sentLists = Object.entries(sent || {}).filter(([, value]) => Array.isArray(value));
     const camel = (key) => key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
     const idOf = (item) =>
@@ -1796,11 +1911,14 @@ const TeacherProfile = () => {
         return Array.isArray(server) && sameIds(server, value);
       });
 
-    // Waits PROFILE_REFRESH.delayMs before each read, at most PROFILE_REFRESH.attempts reads
+    // Reads once when teacher-profile's "profile updated" notification comes; without one,
+    // waits PROFILE_REFRESH.delayMs before each read, at most PROFILE_REFRESH.attempts reads
     // (VITE_PROFILE_REFRESH_DELAY_MS / VITE_PROFILE_REFRESH_ATTEMPTS, default 2500 ms × 3).
-    const { result, done } = await refreshUntil(
-      async () => (await getOwnTeacherProfile()).data,
+    // Reads are shared, so the layout and dashboard get the new profile too.
+    const { result, done } = await refreshAfterSave(
+      () => fetchOwnTeacherProfile({ fresh: true }),
       (data) => Boolean(data) && (sentLists.length === 0 || stored(data)),
+      { since: savedAt },
     );
     if (done) {
       applyBackendProfile(result);
@@ -1831,10 +1949,10 @@ const TeacherProfile = () => {
 
   const toBackendExperience = (e) => ({
     school_name: e.school,
-    is_current_employer: e.currentEmployer,
+    is_current_employer: Boolean(e.currentEmployer),
     board: effectiveValue(e.board, e.boardOther) || null,
     start_date: e.startDate || undefined,
-    end_date: e.endDate || null,
+    end_date: e.currentEmployer ? null : e.endDate || null,
     main_subject: effectiveValue(e.mainSubject, e.mainSubjectOther) || undefined,
     other_subjects: effectiveValue(e.otherSubjects, e.otherSubjectsOther) || null,
     post_held: effectiveValue(e.post, e.postOther),
@@ -2025,8 +2143,9 @@ const TeacherProfile = () => {
       // silent achievements no-op.
       const sections = activeSection === "contact" ? ["contact"] : ["basicInfo"];
       const payload = buildTeacherPayload(sections);
+      const savedAt = saveStartedAt();
       await updateTeacherProfile(payload);
-      await refreshProfileFromBackend();
+      await refreshProfileFromBackend({}, savedAt);
       alert("Profile saved successfully");
     } catch (error) {
       console.error("Error saving teacher profile:", error);
@@ -2958,7 +3077,7 @@ const TeacherProfile = () => {
                 <input
                   type="date"
                   value={experienceDraft.startDate}
-                  max={new Date().toISOString().split("T")[0]}
+                  max={todayInput()}
                   onChange={(e) =>
                     updateExperience("startDate", e.target.value)
                   }
@@ -2970,7 +3089,7 @@ const TeacherProfile = () => {
                   type="date"
                   value={experienceDraft.endDate}
                   min={experienceDraft.startDate || undefined}
-                  max={new Date().toISOString().split("T")[0]}
+                  max={todayInput()}
                   disabled={experienceDraft.currentEmployer}
                   onChange={(e) => updateExperience("endDate", e.target.value)}
                   className={inputClass}
@@ -3238,10 +3357,15 @@ const TeacherProfile = () => {
             <Button
               variant="filled"
               onClick={addAward}
-              startIcon="plusIcon"
+              startIcon={editingAwardIndex !== null ? "editIcon" : "plusIcon"}
             >
-              Add Another Award
+              {editingAwardIndex !== null ? "Update Award" : "Add Another Award"}
             </Button>
+            {editingAwardIndex !== null && (
+              <Button variant="outlined" onClick={cancelAwardEdit}>
+                Cancel
+              </Button>
+            )}
           </div>
 
           <div className={styles.savedSubCard}>
@@ -3259,6 +3383,7 @@ const TeacherProfile = () => {
                   >
                     <p className={styles.savedEntryTitle}>
                       Award #{index + 1}
+                      {editingAwardIndex === index && " · editing"}
                     </p>
                     <div className={styles.savedEntryGrid}>
                       <p>
@@ -3279,6 +3404,14 @@ const TeacherProfile = () => {
                         <span className={styles.savedEntryFieldLabel}>Year:</span>{" "}
                         {award.year || "Not added"}
                       </p>
+                    </div>
+                    <div className={styles.tableActionsRow}>
+                      <Button variant="outlined" onClick={() => editAward(index)} startIcon="editIcon">
+                        Edit
+                      </Button>
+                      <Button variant="outlined" onClick={() => void removeAward(index)} startIcon="deleteIcon">
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -3345,10 +3478,15 @@ const TeacherProfile = () => {
             <Button
               variant="filled"
               onClick={addCourse}
-              startIcon="plusIcon"
+              startIcon={editingCourseIndex !== null ? "editIcon" : "plusIcon"}
             >
-              Add Another Course
+              {editingCourseIndex !== null ? "Update Course" : "Add Another Course"}
             </Button>
+            {editingCourseIndex !== null && (
+              <Button variant="outlined" onClick={cancelCourseEdit}>
+                Cancel
+              </Button>
+            )}
           </div>
 
           <div className={styles.savedSubCard}>
@@ -3366,6 +3504,7 @@ const TeacherProfile = () => {
                   >
                     <p className={styles.savedEntryTitle}>
                       Course #{index + 1}
+                      {editingCourseIndex === index && " · editing"}
                     </p>
                     <div className={styles.savedEntryGrid}>
                       <p>
@@ -3386,6 +3525,14 @@ const TeacherProfile = () => {
                         <span className={styles.savedEntryFieldLabel}>Year:</span>{" "}
                         {course.year || "Not added"}
                       </p>
+                    </div>
+                    <div className={styles.tableActionsRow}>
+                      <Button variant="outlined" onClick={() => editCourse(index)} startIcon="editIcon">
+                        Edit
+                      </Button>
+                      <Button variant="outlined" onClick={() => void removeCourse(index)} startIcon="deleteIcon">
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -3916,6 +4063,7 @@ const TeacherProfile = () => {
                         <input
                           type="date"
                           value={experienceDraft.startDate}
+                          max={todayInput()}
                           onChange={(e) =>
                             updateExperience("startDate", e.target.value)
                           }
@@ -3927,6 +4075,8 @@ const TeacherProfile = () => {
                           <input
                             type="date"
                             value={experienceDraft.endDate}
+                            min={experienceDraft.startDate || undefined}
+                            max={todayInput()}
                             onChange={(e) =>
                               updateExperience("endDate", e.target.value)
                             }

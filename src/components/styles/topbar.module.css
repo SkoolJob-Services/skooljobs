@@ -107,3 +107,72 @@
   border-radius: 1rem;
   object-fit: cover;
 }
+
+/* User menu (profile icon): profile, settings, logout. */
+.userMenuWrapper {
+  position: relative;
+}
+
+.avatarButton {
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+}
+
+.avatarButton:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.userMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 40;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-bg, #fff);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+}
+
+.userMenuName {
+  margin: 4px 8px 0;
+  font-weight: 700;
+  color: var(--color-primary);
+  word-break: break-word;
+}
+
+.userMenuMeta {
+  margin: 2px 8px 8px;
+  font-size: 0.8rem;
+  color: #64748b;
+  word-break: break-all;
+}
+
+.userMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.userMenuItem:hover,
+.userMenuItem:focus-visible {
+  background: var(--color-light, #eef3f8);
+}
+
+.userMenuLogout {
+  color: #b42318;
+}

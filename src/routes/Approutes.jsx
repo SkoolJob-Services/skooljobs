@@ -39,6 +39,7 @@ import AdminJobApprovals from "../pages/admin/AdminJobApprovals";
 import AdminTeachers from "../pages/admin/AdminTeachers";
 import AdminPostJob from "../pages/admin/AdminPostJob";
 import AdminManageJobs from "../pages/admin/AdminManageJobs";
+import AdminSettings from "../pages/admin/AdminSettings";
 import SchoolHome from "../pages/school/SchoolHome";
 import SchoolViewProfile from "../pages/school/SchoolViewProfile";
 import SchoolPostJob from "../pages/school/SchoolPostJob";
@@ -178,6 +179,7 @@ function AppRoutes() {
           <Route path="schools" element={<AdminSchools />} />
           <Route path="post-job" element={<AdminPostJob />} />
           <Route path="manage-jobs" element={<AdminManageJobs />} />
+          <Route path="settings" element={<AdminSettings />} />
         </Route>
       </Route>
 

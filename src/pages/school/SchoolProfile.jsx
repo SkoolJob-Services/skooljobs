@@ -404,8 +404,10 @@ const SchoolProfile = () => {
 
   // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
   const handleLogout = async () => {
+    // To the website home page first: ending the session while still on a protected page
+    // would make its route guard send the user to /login instead.
+    navigate("/", { replace: true });
     await signOut();
-    navigate("/login", { replace: true });
   };
   /** First problem in the whole form (every section is saved together): [section, message]. */
   const firstProblem = () => {

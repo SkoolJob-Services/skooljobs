@@ -10,8 +10,8 @@ import {
   searchTeachers,
 } from "../../services/teacherprofileService";
 import { mockApiEnabled } from "../../api";
-import { PROFILE_REFRESH } from "../../lib/profileRefresh";
-import { DocumentImage } from "../../components/DocumentImage";
+import { refreshUntil } from "../../lib/profileRefresh";
+import { PersonAvatar } from "../../components/PersonAvatar";
 import ui from "./styles/AdminUi.module.css";
 import styles from "./styles/AdminTeachers.module.css";
 
@@ -166,6 +166,30 @@ const AdminTeachers = () => {
     setLoadState(result.ok ? "ready" : "error");
   }, []);
 
+  /**
+   * The service stores a change a moment after its 202: search again (PROFILE_REFRESH: wait
+   * before each read, a few reads) until `isStored(row)` holds for the teacher, and only then
+   * show the list — an earlier read would put the old row back. Returns whether it showed.
+   */
+  const showWhenStored = async (teacherId, isStored) => {
+    const { result, done } = await refreshUntil(
+      () => runSearch(filters),
+      (res) => res.ok && res.list.some((t) => idOf(t) === teacherId && isStored(t)),
+    );
+    if (done) showResult(result);
+    return done;
+  };
+
+  /** The service's reason for a refused call, in words. */
+  const serviceError = (error, what) => {
+    const status = error?.response?.status;
+    const message = error?.response?.data?.message;
+    if (!error?.response) return `Couldn't reach the teacher service to ${what}. Check the connection and try again.`;
+    if (status === 401) return "Your session has ended. Log in again with an ADMIN account.";
+    if (status === 403) return message || `Only an ADMIN can ${what}. Log in with an ADMIN account.`;
+    return message ? `Couldn't ${what}: ${message}` : `Couldn't ${what}. Please try again.`;
+  };
+
   // First list: every teacher (no filters).
   useEffect(() => {
     if (localLogin) return undefined;
@@ -235,13 +259,35 @@ const AdminTeachers = () => {
         });
         setNotice(`Changes to ${form.first_name} ${form.last_name} saved.`);
       }
+      const editedId = editor.mode === "edit" ? idOf(editor.teacher) : null;
+      const sections = formSections(form);
+      if (editedId) {
+        // Show the change at once; the list is read again once the service has stored it.
+        setTeachers((list) =>
+          list.map((t) =>
+            idOf(t) === editedId
+              ? { ...t, ...sections, contact: { ...t.contact, ...sections.contact }, address: { ...t.address, ...sections.address } }
+              : t,
+          ),
+        );
+      }
       setEditor(null);
-      // Stored a moment after the 202: search again then.
-      setTimeout(() => runSearch(filters).then(showResult), PROFILE_REFRESH.delayMs);
+      const stored = editedId
+        ? await showWhenStored(
+            editedId,
+            (t) =>
+              t.first_name === sections.first_name &&
+              t.last_name === sections.last_name &&
+              String(pick(t.contact, "primary_email", "primaryEmail") || "").toLowerCase() === sections.contact.primary_email,
+          )
+        : await refreshUntil(() => runSearch(filters), (res) => res.ok).then(({ result, done }) => {
+            if (done) showResult(result);
+            return done;
+          });
+      if (!stored) setNotice("Saved. The teacher service hasn't shown the change yet; search again in a moment.");
     } catch (error) {
       console.error("Teacher save failed:", error);
-      const message = error?.response?.data?.message;
-      setFormError(message ? `Couldn't save: ${message}` : "Couldn't save the teacher profile. Please try again.");
+      setFormError(serviceError(error, "save the teacher profile"));
     } finally {
       setSaving(false);
     }
@@ -267,11 +313,18 @@ const AdminTeachers = () => {
         list.map((t) => (idOf(t) === id ? { ...t, status: active ? "ACTIVE" : "INACTIVE" } : t)),
       );
       setNotice(active ? `${name} is reactivated and can log in again.` : `${name} is deactivated and can't log in.`);
-      setTimeout(() => runSearch(filters).then(showResult), PROFILE_REFRESH.delayMs);
+      const target = active ? "ACTIVE" : "INACTIVE";
+      const stored = await showWhenStored(id, (t) => t.status === target);
+      if (!stored) {
+        setNotice(
+          `${active ? "Reactivation" : "Deactivation"} of ${name} was accepted, but the teacher service hasn't shown it yet. Search again in a moment; if it still shows the old status, the change failed on the server.`,
+        );
+      }
     } catch (error) {
       console.error("Teacher status change failed:", error);
-      const message = error?.response?.data?.message;
-      setListError(message ? `Couldn't change ${name}: ${message}` : `Couldn't change ${name}. Please try again.`);
+      // Undo the change shown at once.
+      setTeachers((list) => list.map((t) => (idOf(t) === id ? { ...t, status: teacher.status } : t)));
+      setListError(serviceError(error, active ? `reactivate ${name}` : `deactivate ${name}`));
     } finally {
       setBusyId(null);
     }
@@ -311,7 +364,7 @@ const AdminTeachers = () => {
       {notice && (
         <div className={`${ui.notice} ${ui.noticeSuccess}`} role="status">
           <Info size={16} aria-hidden="true" />
-          <span>{notice} It may take a moment to show in the list.</span>
+          <span>{notice}</span>
         </div>
       )}
 
@@ -448,13 +501,11 @@ const AdminTeachers = () => {
                     <tr className={styles.row}>
                       <td className={styles.td} data-label="Teacher">
                         <div className={styles.nameCell}>
-                          {t.profile_photo_url ? (
-                            <DocumentImage src={t.profile_photo_url} alt="" className={styles.avatar} />
-                          ) : (
-                            <span className={styles.avatar} aria-hidden="true">
-                              {(t.first_name || "?")[0]}
-                            </span>
-                          )}
+                          <PersonAvatar
+                            src={pick(t, "profile_photo_url", "profilePhotoUrl")}
+                            name={[t.first_name, t.last_name].filter(Boolean).join(" ")}
+                            className={styles.avatar}
+                          />
                           <span>
                             <strong>{fullName(t)}</strong>
                             {t.current_job_title && <span className={styles.sub}>{t.current_job_title}</span>}

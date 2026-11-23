@@ -19,3 +19,15 @@
   width: auto;
   max-width: 100%;
 }
+
+/* The logo links to the home page. */
+.link {
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: 14px;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--color-primary, #1f3b63);
+  outline-offset: 3px;
+}

@@ -75,7 +75,22 @@ export const serviceHttp: AxiosInstance = axios.create({
   headers: { Accept: "application/json" },
 });
 
+/**
+ * This deployment's tenant (GET /tenants/current, set by TenantProvider). Each UI deployment
+ * belongs to one tenant: requests to the business services without a login (the public job
+ * search) carry it as X-Tenant-Id, so the services need no tenant settings of their own.
+ * Logged-in requests don't: their token says the tenant.
+ */
+let publicTenantId: string | null = null;
+export function setPublicTenantId(tenantId: string | null | undefined): void {
+  publicTenantId = tenantId && tenantId.trim() ? tenantId.trim() : null;
+}
+
 serviceHttp.interceptors.request.use(addPlatformHeaders);
+serviceHttp.interceptors.request.use((request) => {
+  if (publicTenantId && !request.headers.get("Authorization")) request.headers.set("X-Tenant-Id", publicTenantId);
+  return request;
+});
 serviceHttp.interceptors.response.use(
   (response) => response,
   (error: unknown) => {

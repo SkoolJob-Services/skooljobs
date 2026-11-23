@@ -67,6 +67,35 @@
   backdrop-filter: blur(7px);
 }
 
+/* No picture: employment type and location as labels above the title. */
+.labelRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 20px 24px 0;
+}
+.label,
+.labelMuted {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 30px;
+  font-weight: 800;
+}
+.label {
+  padding: 6px 12px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.labelMuted {
+  padding: 6px 12px;
+  background: var(--color-cream);
+  color: var(--color-primary-text);
+  font-size: 12px;
+}
+
 .content {
   flex: 1;
   display: flex;

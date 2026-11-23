@@ -9,9 +9,10 @@ import { inputClass, labelClass } from "../../lib/formStyles";
 import { toOptions } from "../../lib/selectOptions";
 import { Input, Select } from "@cloudstrytech/ui-components";
 import { validateFields } from "../../lib/textValidation";
-import { updateJob, deleteJob } from "../../services/jobService";
+import { updateJob, deleteJob, changeJobStatus } from "../../services/jobService";
 import styles from "./styles/SchoolJobDetail.module.css";
 
+import { PersonAvatar } from "../../components/PersonAvatar";
 const {
   Subject: subjectsRaw,
   Experience_required: experienceOptionsRaw,
@@ -47,6 +48,7 @@ const SchoolJobDetail = () => {
   const navigate = useNavigate();
   const { jobs, setJobs, applicants, interviews } = useOutletContext();
 
+  const [statusSaving, setStatusSaving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [savingEdit, setSavingEdit] = useState(false);
@@ -70,11 +72,38 @@ const SchoolJobDetail = () => {
   const rejected = candidates.filter((a) => a.status === "Rejected").length;
   const ivCount = interviews.filter((iv) => iv.jobTitle === job.title).length;
 
-  // No backend field exists for job status (UpdateJobRequest has no
-  // `status` property) - Activate/Pause/Close/Publish stay local-only
-  // until the Job service exposes a status-transition capability.
-  const setJobStatus = (status) =>
+  // Status changes go to the job service (POST /jobs/status). Its rules: ACTIVE needs the
+  // job approved by SkoolJobs; only a Draft (or a rejected job, which is a Draft) can be sent
+  // for approval; only an Active job can be paused; any job can be closed.
+  const STATUS_API = { Active: "ACTIVE", Paused: "PAUSED", Closed: "CLOSED", "Pending Approval": "PENDING_APPROVAL" };
+  const statusErrorMessage = (error, target) => {
+    const message = error?.response?.data?.message || "";
+    if (/not approved/i.test(message)) {
+      return "This job isn't approved by SkoolJobs yet, so it can't go live. It becomes active once it's approved.";
+    }
+    if (error?.response?.status === 409 && message) return `Can't change the status: ${message}`;
+    if (error?.response?.status === 403) return "You don't have permission to change this job's status.";
+    if (!error?.response) return "Couldn't reach the job service. Check your connection and try again.";
+    return message ? `Couldn't change the status to ${target}: ${message}` : `Couldn't change the status to ${target}. Please try again.`;
+  };
+  const setJobStatus = async (status) => {
+    const apiStatus = STATUS_API[status];
+    if (!apiStatus || statusSaving) return;
+    if (status === "Closed" && !window.confirm("Close this job? Teachers won't be able to apply any more.")) return;
+    const previous = job.status;
+    setStatusSaving(true);
     setJobs((p) => p.map((j) => (j.id === job.id ? { ...j, status } : j)));
+    try {
+      await changeJobStatus(job.id, apiStatus);
+      if (status === "Pending Approval") alert("Sent to SkoolJobs for approval. The job goes live once it's approved.");
+    } catch (error) {
+      console.error("Failed to change job status:", error);
+      setJobs((p) => p.map((j) => (j.id === job.id ? { ...j, status: previous } : j)));
+      alert(statusErrorMessage(error, status));
+    } finally {
+      setStatusSaving(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!window.confirm("Permanently delete this job? This cannot be undone.")) return;
@@ -147,7 +176,13 @@ const SchoolJobDetail = () => {
     } catch (error) {
       console.error("Failed to update job:", error);
       const serverMessage = error?.response?.data?.message;
-      alert(serverMessage ? `Failed to save job: ${serverMessage}` : "Failed to save job.");
+      alert(
+        !error?.response
+          ? "Couldn't reach the job service. Check your connection and try again."
+          : serverMessage
+            ? `Failed to save job: ${serverMessage}`
+            : "Failed to save job. Please try again.",
+      );
     } finally {
       setSavingEdit(false);
     }
@@ -237,7 +272,7 @@ const SchoolJobDetail = () => {
             <div className={styles.candidatesList}>
               {candidates.map((a) => (
                 <div key={a.id} className={styles.candidateRow}>
-                  <img src={a.avatar} alt={a.name} className={styles.candidateAvatar} />
+                  <PersonAvatar src={a.avatar} name={a.name} className={styles.candidateAvatar} />
                   <div className={styles.candidateInfo}>
                     <p className={styles.candidateName}>{a.name}</p>
                     <p className={styles.candidateSub}>{a.experience} · {a.qualification}</p>
@@ -279,28 +314,31 @@ const SchoolJobDetail = () => {
           <div className={styles.statusCard}>
             <h3 className={styles.statusCardTitle}>Hiring Status</h3>
             <div className={styles.statusBtnGroup}>
-              {job.status !== "Active" && (
-                <button type="button" onClick={() => setJobStatus("Active")}
+              {job.status === "Paused" && (
+                <button type="button" onClick={() => void setJobStatus("Active")} disabled={statusSaving}
                   className={`${styles.statusBtnBase} ${styles.btnActivate}`}>
-                  <PlayCircle size={16} /> Activate Job
+                  <PlayCircle size={16} /> Resume Hiring
                 </button>
               )}
               {job.status === "Active" && (
-                <button type="button" onClick={() => setJobStatus("Paused")}
+                <button type="button" onClick={() => void setJobStatus("Paused")} disabled={statusSaving}
                   className={`${styles.statusBtnBase} ${styles.btnPause}`}>
                   <PauseCircle size={16} /> Pause Hiring
                 </button>
               )}
-              {job.status !== "Closed" && job.status !== "Draft" && (
-                <button type="button" onClick={() => setJobStatus("Closed")}
-                  className={`${styles.statusBtnBase} ${styles.btnClose}`}>
-                  <XCircle size={16} /> Close Job
+              {(job.status === "Draft" || job.status === "Rejected") && (
+                <button type="button" onClick={() => void setJobStatus("Pending Approval")} disabled={statusSaving}
+                  className={`${styles.statusBtnBase} ${styles.btnPublish}`}>
+                  <Send size={16} /> Send for Approval
                 </button>
               )}
-              {job.status === "Draft" && (
-                <button type="button" onClick={() => setJobStatus("Active")}
-                  className={`${styles.statusBtnBase} ${styles.btnPublish}`}>
-                  <Send size={16} /> Publish Now
+              {job.status === "Pending Approval" && (
+                <p className={styles.statusNote}>Waiting for approval by SkoolJobs. It goes live once approved.</p>
+              )}
+              {job.status !== "Closed" && job.status !== "Expired" && (
+                <button type="button" onClick={() => void setJobStatus("Closed")} disabled={statusSaving}
+                  className={`${styles.statusBtnBase} ${styles.btnClose}`}>
+                  <XCircle size={16} /> Close Job
                 </button>
               )}
             </div>

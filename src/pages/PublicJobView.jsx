@@ -7,6 +7,8 @@ import { SAMPLE_JOBS } from "../site/data/sampleJobs";
 import SharedJobDetail from "../components/SharedJobDetail";
 import styles from "./PublicJobView.module.css";
 import { BrandLogo } from "../components/BrandLogo";
+import { useTenant } from "../features/tenant/TenantContext";
+import { sessionStore } from "../features/auth/sessionStore";
 
 const PublicJobView = () => {
   const { jobId } = useParams();
@@ -15,7 +17,13 @@ const PublicJobView = () => {
   // A shared link is opened by people who don't have the job in their browser: load it from the
   // Job Posting service (GET /jobs/{jobId}); the demo jobs in `npm run dev:mock`.
   const [result, setResult] = useState({ jobId: null, job: null });
+  // Without a login the job service answers for this deployment's tenant (X-Tenant-Id from
+  // GET /tenants/current): wait until it is known.
+  const { tenant, status: tenantStatus } = useTenant();
+  const tenantId = tenant?.tenantId || null;
+  const canLoad = config.useMockApi || Boolean(sessionStore.load()?.accessToken) || Boolean(tenantId);
   useEffect(() => {
+    if (!canLoad) return undefined;
     let cancelled = false;
     const load = config.useMockApi
       ? Promise.resolve(SAMPLE_JOBS.find((j) => String(j.id) === String(jobId)) || null).then(fromSample)
@@ -31,8 +39,8 @@ const PublicJobView = () => {
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
-  const loading = result.jobId !== jobId;
+  }, [jobId, canLoad, tenantId]);
+  const loading = result.jobId !== jobId && !(tenantStatus === "error" && !canLoad);
   const job = loading ? null : result.job;
 
   // Load currentUser to check role

@@ -26,6 +26,8 @@ export interface LegacyUser {
   lastName?: string;
   email?: string;
   phone?: string;
+  /** WhatsApp number, when the token carries it. */
+  whatsapp?: string;
   role: string;
   isMember?: boolean;
   /** School the account belongs to, when the token says (the school pages show it in the header). */
@@ -46,6 +48,7 @@ export function toLegacyUser(session: AuthSession, role: AppRole, roleCodes: str
     lastName: text("family_name") ?? text("lastName"),
     email: text("email") ?? (isEmail ? session.identifier : undefined),
     phone: text("phone") ?? text("phone_number") ?? (isEmail ? undefined : session.identifier),
+    whatsapp: text("whatUpNo") ?? text("whatsapp"),
     role: LEGACY_ROLE[role],
     isMember: role === "SCHOOL_MEMBER" || undefined,
     schoolName: text("schoolName"),

@@ -104,7 +104,9 @@ export default function SiteLayout() {
       <footer className={styles.footer}>
         <div className={styles.footerGrid}>
           <div className={styles.footerBrand}>
-            <img src={SITE_IMAGES.logo} alt="SkoolJobs" className={styles.footerLogo} />
+            <Link to="/" aria-label="SkoolJobs home">
+              <img src={SITE_IMAGES.logo} alt="SkoolJobs" className={styles.footerLogo} />
+            </Link>
             <h3>SkoolJobs</h3>
             <p>{SITE_TAGLINE}</p>
           </div>
