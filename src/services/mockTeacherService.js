@@ -113,6 +113,12 @@ export const mockTeacherService = {
     return accepted("Update teacher command accepted.");
   },
 
+  async getTeachersByIds(ids) {
+    await delay();
+    const wanted = new Set(ids.map(String));
+    return { status: 200, data: load().filter((t) => wanted.has(String(t.teacherId))) };
+  },
+
   /** delete / deactivate / activate: only the status changes (the login status lives in signup). */
   async setStatus(teacherId, status) {
     await delay();

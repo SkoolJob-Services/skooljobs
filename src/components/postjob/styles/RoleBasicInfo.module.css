@@ -99,6 +99,13 @@
   color: var(--color-primary);
 }
 
+/* The chosen employment type (two classes: wins over the hover and base styles). */
+.employmentTypeButton.employmentTypeButtonActive {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: #fff;
+}
+
 
 
 

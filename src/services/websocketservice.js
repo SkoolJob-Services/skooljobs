@@ -12,6 +12,9 @@ export const buildNotificationSocketUrl = (userId) =>
 const isLive = (ws) =>
     ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN;
 
+/** Whether the notification socket is open (notifications can arrive). */
+export const isConnected = () => Boolean(socket) && socket.readyState === WebSocket.OPEN;
+
 export const disconnect = () => {
     messageHandler = null;
 

@@ -179,11 +179,71 @@ function mockProfile() {
   });
 }
 
+// ---- one shared GET /teachers/me ----------------------------------------------------------
+//
+// The layout, the profile page and Settings all need the profile. They share one request (a
+// read already on its way is reused) and its result (kept CACHE_MS, per user), and every fresh
+// read is pushed to all of them, so the API is not called once per screen.
+
+const CACHE_MS = 60_000;
+let cached = null; // { userId, data, at }
+let inFlight = null; // { userId, promise }
+const listeners = new Set();
+
+const currentUserId = () => {
+  try {
+    return JSON.parse(localStorage.getItem("currentUser") || "{}").id || null;
+  } catch {
+    return null;
+  }
+};
+
+function publish(data) {
+  listeners.forEach((listener) => listener(data));
+}
+
+/**
+ * The signed-in teacher's GET /teachers/me data. `fresh: true` skips the cached copy (after a
+ * save, on a notification); a request already on its way is shared either way. Rejects like
+ * the API (404 while the profile doesn't exist yet).
+ */
+export function fetchOwnTeacherProfile({ fresh = false } = {}) {
+  const userId = currentUserId();
+  if (!fresh && cached && cached.userId === userId && Date.now() - cached.at < CACHE_MS) {
+    return Promise.resolve(cached.data);
+  }
+  if (inFlight && inFlight.userId === userId) return inFlight.promise;
+  const promise = getOwnTeacherProfile()
+    .then(({ data }) => {
+      cached = { userId, data, at: Date.now() };
+      publish(data);
+      return data;
+    })
+    .finally(() => {
+      if (inFlight?.promise === promise) inFlight = null;
+    });
+  inFlight = { userId, promise };
+  return promise;
+}
+
+/** Profile data read elsewhere (e.g. by a refresh loop): store it and show it everywhere. */
+export function shareOwnTeacherProfile(data) {
+  if (!data) return;
+  cached = { userId: currentUserId(), data, at: Date.now() };
+  publish(data);
+}
+
+/** Called with every fresh profile; returns the unsubscribe function. */
+export function subscribeOwnTeacherProfile(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 // Right after signup the profile is still being created from the signup event (Kafka), so a
 // 404 is retried (PROFILE_REFRESH: VITE_PROFILE_REFRESH_DELAY_MS × VITE_PROFILE_REFRESH_ATTEMPTS).
 
 /**
- * The signed-in teacher's own profile from GET /teachers/me.
+ * The signed-in teacher's own profile from GET /teachers/me (shared, see fetchOwnTeacherProfile).
  * Returns { profile, raw, status: "loading" | "ready" | "missing" | "error", error, refresh, apply }.
  */
 export function useOwnTeacherProfile() {
@@ -194,14 +254,17 @@ export function useOwnTeacherProfile() {
   );
   const run = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (fresh = false) => {
     if (config.useMockApi) return;
     const current = ++run.current;
     for (let attempt = 0; ; attempt += 1) {
       try {
-        const { data } = await getOwnTeacherProfile();
-        if (current !== run.current) return;
-        setState({ profile: normalizeTeacherProfile(data), raw: data, status: "ready", error: null });
+        // Fresh reads also reach every screen through the subscription below; a cached copy
+        // is only returned here.
+        const data = await fetchOwnTeacherProfile({ fresh: fresh || attempt > 0 });
+        if (current === run.current) {
+          setState({ profile: normalizeTeacherProfile(data), raw: data, status: "ready", error: null });
+        }
         return;
       } catch (error) {
         if (current !== run.current) return;
@@ -221,25 +284,27 @@ export function useOwnTeacherProfile() {
   }, []);
 
   useEffect(() => {
+    if (config.useMockApi) return undefined;
+    const unsubscribe = subscribeOwnTeacherProfile((data) =>
+      setState({ profile: normalizeTeacherProfile(data), raw: data, status: "ready", error: null }),
+    );
     // The fetch runs outside the effect body; state is only set from its callbacks.
-    const timer = setTimeout(load, 0);
+    const timer = setTimeout(() => load(false), 0);
     return () => {
+      unsubscribe();
       clearTimeout(timer);
       run.current += 1;
     };
   }, [load]);
 
+  /** Read the profile again from the server (the dashboard's refresh button). */
   const refresh = useCallback(() => {
     setState((prev) => ({ ...prev, status: prev.profile ? prev.status : "loading" }));
-    load();
+    load(true);
   }, [load]);
 
   /** Show a profile just read elsewhere (GET /teachers/me data), without reading it again. */
-  const apply = useCallback((data) => {
-    if (!data) return;
-    run.current += 1; // a read still in flight must not overwrite it
-    setState({ profile: normalizeTeacherProfile(data), raw: data, status: "ready", error: null });
-  }, []);
+  const apply = useCallback((data) => shareOwnTeacherProfile(data), []);
 
   return { ...state, refresh, apply };
 }

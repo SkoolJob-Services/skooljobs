@@ -1,3 +1,4 @@
+import { PersonAvatar } from "../components/PersonAvatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
@@ -11,6 +12,7 @@ import {
   PlusCircle,
   UserPlus,
   X,
+  Settings,
 } from "lucide-react";
 import styles from "./AdminLayout.module.css";
 import { BrandLogo } from "../components/BrandLogo";
@@ -27,6 +29,7 @@ const sidebarItems = [
   { label: "Post a New Job", icon: PlusCircle, path: "/admin/post-job" },
   { label: "Manage Jobs", icon: BriefcaseBusiness, path: "/admin/manage-jobs" },
   { label: "Teachers", icon: GraduationCap, path: "/admin/teachers" },
+  { label: "Settings", icon: Settings, path: "/admin/settings" },
 ];
 
 // Header titles for every admin route, including the ones not in the sidebar.
@@ -43,14 +46,6 @@ const pageTitles = {
 
 const isActivePath = (pathname, path) =>
   pathname === path || pathname.startsWith(path + "/");
-
-const initialsOf = (text) =>
-  text
-    .split(/[\s@._-]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
 
 const AdminLayout = () => {
   const navigate = useNavigate();
@@ -164,8 +159,10 @@ const AdminLayout = () => {
 
   // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
   const handleLogout = async () => {
+    // To the website home page first: ending the session while still on a protected page
+    // would make its route guard send the user to /login instead.
+    navigate("/", { replace: true });
     await signOut();
-    navigate("/login", { replace: true });
   };
 
   // Signed-in admin from the session — nothing is shown if the session has no name/email.
@@ -303,13 +300,7 @@ const AdminLayout = () => {
                   <p className={styles.profileSub}>{adminContact}</p>
                 )}
               </div>
-              {currentUser.profilePhoto ? (
-                <img src={currentUser.profilePhoto} alt="" className={styles.avatar} />
-              ) : (
-                <span className={styles.avatar} aria-hidden="true">
-                  {initialsOf(adminLabel)}
-                </span>
-              )}
+              <PersonAvatar src={currentUser.profilePhoto} name={adminLabel} className={styles.avatar} />
             </div>
           )}
         </header>

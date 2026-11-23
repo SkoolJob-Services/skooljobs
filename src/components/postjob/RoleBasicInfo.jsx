@@ -125,6 +125,7 @@ const RoleBasicInfo = ({ form, setField, managedSchools }) => {
                 key={type}
                 type="button"
                 onClick={() => setField("employmentType", type)}
+                aria-pressed={form.employmentType === type}
                 className={`${styles.employmentTypeButton} ${form.employmentType === type ? styles.employmentTypeButtonActive : ""
                   }`}
               >

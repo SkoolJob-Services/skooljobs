@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { setPublicTenantId } from "../../api/httpClient";
 import { authApi, type TenantInfoResponse } from "../../api";
 import { errorMessage } from "../../lib/errorMessages";
 import { channelsOf, type TenantChannels } from "./otpChannels";
@@ -39,6 +40,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     loadWithRetry(() => authApi.getCurrentTenant(), () => cancelled)
       .then((result) => {
         if (cancelled) return;
+        // Anonymous calls to the business services (public job search) say this tenant.
+        setPublicTenantId(result?.tenantId);
         setTenant(result);
         setError(null);
         setStatus("ready");

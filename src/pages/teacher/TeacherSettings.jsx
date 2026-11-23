@@ -5,13 +5,12 @@ import FormField from "../../components/FormField";
 import styles from "./styles/TeacherSettings.module.css";
 import { PinSection } from "../../features/pin/PinSection";
 import { LoginContactSection } from "../../features/account/LoginContactSection";
-import { normalizeTeacherProfile } from "../../features/teacher/ownTeacherProfile";
-import { refreshUntil } from "../../lib/profileRefresh";
+import { fetchOwnTeacherProfile, normalizeTeacherProfile } from "../../features/teacher/ownTeacherProfile";
+import { refreshAfterSave, saveStartedAt } from "../../lib/profileRefresh";
 import { mockApiEnabled } from "../../api";
 import { Button, Input, useSnackbar } from "@cloudstrytech/ui-components";
 import {
   updateTeacherProfile,
-  getOwnTeacherProfile,
   deleteOwnAccount,
 } from "../../services/teacherprofileService";
 
@@ -34,12 +33,14 @@ const TeacherSettings = () => {
   const reloadProfileSoon = (change) => {
     if (!applyTeacherProfile || mockApiEnabled) return;
     const same = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
-    void refreshUntil(
-      async () => (await getOwnTeacherProfile()).data,
+    // Reads once the "profile updated" notification comes, else PROFILE_REFRESH polling; the
+    // shared read updates the layout too. The verify call already ended, so wait from a moment
+    // before it.
+    void refreshAfterSave(
+      () => fetchOwnTeacherProfile({ fresh: true }),
       (data) => !change || same(normalizeTeacherProfile(data)?.[change.field], change.value),
-    ).then(({ result, done }) => {
-      if (done) applyTeacherProfile(result);
-    });
+      { since: saveStartedAt() - 1000 },
+    );
   };
 
   // Settings state
@@ -56,8 +57,9 @@ const TeacherSettings = () => {
   useEffect(() => {
     if (!storedUser.id) return;
     let cancelled = false;
-    getOwnTeacherProfile()
-      .then(({ data }) => {
+    // Shared with the layout's read (one GET /teachers/me for both).
+    fetchOwnTeacherProfile()
+      .then((data) => {
         if (cancelled || !data?.notificationPreferences) return;
         const prefs = data.notificationPreferences;
         setNotifPrefs((prev) => ({

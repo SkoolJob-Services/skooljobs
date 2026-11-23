@@ -5,6 +5,7 @@ import styles from "./styles/SchoolSavedCandidates.module.css";
 import { Button } from "@cloudstrytech/ui-components";
 import { validateText } from "../../lib/textValidation";
 
+import { PersonAvatar } from "../../components/PersonAvatar";
 const SchoolSavedCandidates = () => {
   const navigate = useNavigate();
   const { applicants, handleSaveCandidate } = useOutletContext();
@@ -46,7 +47,7 @@ const SchoolSavedCandidates = () => {
           {savedApplicants.map((applicant) => (
             <div key={applicant.id} className={styles.card}>
               <div className={styles.cardInner}>
-                <img src={applicant.avatar} alt={applicant.name} className={styles.avatar} />
+                <PersonAvatar src={applicant.avatar} name={applicant.name} className={styles.avatar} />
                 <div className={styles.body}>
                   <div className={styles.bodyHeader}>
                     <div className={styles.bodyHeaderInfo}>

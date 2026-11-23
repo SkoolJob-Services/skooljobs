@@ -561,3 +561,9 @@
 .saveBtn:hover {
   background-color: rgba(21, 41, 63, 0.9);
 }
+
+.statusNote {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}

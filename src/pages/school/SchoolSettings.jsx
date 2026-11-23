@@ -15,6 +15,7 @@ import {
 import FormField from "../../components/FormField";
 import styles from "./styles/SchoolSettings.module.css";
 import { PinSection } from "../../features/pin/PinSection";
+import { LoginContactSection } from "../../features/account/LoginContactSection";
 
 const SchoolSettings = () => {
   const { handleLogout, currentUser } = useOutletContext();
@@ -567,6 +568,14 @@ const SchoolSettings = () => {
           )}
         </div>
       )}
+
+      {/* --- Login email / WhatsApp / mobile, each added or changed with a code (signup user
+            profile); only the channels the organisation has on for login codes --- */}
+      <LoginContactSection
+        email={currentUser.email}
+        whatsapp={currentUser.whatsapp}
+        mobile={currentUser.phone}
+      />
 
       {/* --- PIN login (only when the organisation has it switched on) --- */}
       <PinSection />

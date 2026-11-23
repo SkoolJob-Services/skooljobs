@@ -9,6 +9,7 @@ import styles from "./styles/SchoolAllApplicants.module.css";
 import { Select } from "@cloudstrytech/ui-components";
 import { toOptions } from "../../lib/selectOptions";
 
+import { PersonAvatar } from "../../components/PersonAvatar";
 const { Subject: subjectsRaw } = postjob;
 const { Applicant_status: statusOptionsRaw, Experience_filter: experienceFilterOptionsRaw } = applicantsOptions;
 const subjects = toOptions(subjectsRaw);
@@ -30,7 +31,7 @@ const defaultStatusChipStyle = { backgroundColor: "#f1f5f9", color: "#64748b" };
 const SchoolAllApplicants = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { applicants, setApplicants, handleSaveCandidate } = useOutletContext();
+  const { applicants, changeApplicantStatus, handleSaveCandidate } = useOutletContext();
 
   const [applicantSearch, setApplicantSearch] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
@@ -100,9 +101,17 @@ const SchoolAllApplicants = () => {
     return matchSearch && matchSubject && matchExp && matchJob && matchStatus;
   });
 
-  const handleStatusChange = (id, status) => {
-    setApplicants((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+  // Shortlisted / Rejected / Hired are saved on the application (application service): the
+  // teacher sees them, and shortlisted applicants can be scheduled for an interview.
+  const handleStatusChange = async (id, status) => {
+    const previous = selected?.id === id ? selected.status : null;
     if (selected?.id === id) setSelected((s) => ({ ...s, status }));
+    try {
+      await changeApplicantStatus(id, status);
+    } catch (error) {
+      if (previous !== null) setSelected((s) => (s?.id === id ? { ...s, status: previous } : s));
+      alert(error.message);
+    }
   };
 
   const handleSave = (id) => {
@@ -193,7 +202,7 @@ const SchoolAllApplicants = () => {
                   >
                     <td className={styles.td}>
                       <div className={styles.candidateCell}>
-                        <img src={applicant.avatar} alt={applicant.name} className={styles.candidateAvatar} />
+                        <PersonAvatar src={applicant.avatar} name={applicant.name} className={styles.candidateAvatar} />
                         <div className={styles.candidateInfo}>
                           <p className={styles.candidateName}>{applicant.name}</p>
                           <p className={styles.candidateQualification}>{applicant.qualification}</p>
@@ -254,11 +263,7 @@ const SchoolAllApplicants = () => {
                   {drawerApplicant.status}
                 </span>
                 <div className={styles.profileHeader}>
-                  <img
-                    src={drawerApplicant.avatar}
-                    alt={drawerApplicant.name}
-                    className={styles.profileAvatar}
-                  />
+                  <PersonAvatar src={drawerApplicant.avatar} name={drawerApplicant.name} className={styles.profileAvatar} />
                   <div className={styles.profileInfo}>
                     <h4 className={styles.profileName}>{drawerApplicant.name}</h4>
                     <p className={styles.profileJobTitle}>{drawerApplicant.jobTitle}</p>

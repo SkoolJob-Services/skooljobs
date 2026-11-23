@@ -28,17 +28,21 @@ import {
   experienceYears,
   profileCompletion,
   toMatchProfile,
+  fetchOwnTeacherProfile,
   useOwnTeacherProfile,
 } from "../features/teacher/ownTeacherProfile";
 import { mapPublicJob, usePublicJobs } from "../site/hooks/usePublicJobs";
-import {
-  getOwnTeacherProfile,
-  updateTeacherProfile,
-} from "../services/teacherprofileService";
+import { updateTeacherProfile } from "../services/teacherprofileService";
 import styles from "./TeacherLayout.module.css";
 import { DocumentImage } from "../components/DocumentImage";
 import { BrandLogo } from "../components/BrandLogo";
-import { refreshUntil } from "../lib/profileRefresh";
+import { refreshAfterSave, saveStartedAt, setNotificationStatus, signalProfileUpdated } from "../lib/profileRefresh";
+import {
+  connect as connectNotificationSocket,
+  disconnect as disconnectNotificationSocket,
+  isConnected as notificationSocketOpen,
+} from "../services/websocketservice";
+import NotificationToasts from "../components/NotificationToasts";
 import { ApplyDialog } from "../features/teacher/ApplyDialog";
 import { DOCUMENT_TYPES, uploadDocumentRef } from "../services/documentService";
 
@@ -194,6 +198,41 @@ const TeacherLayout = () => {
   const [currentUser, setCurrentUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("currentUser") || "{}"); } catch { return {}; }
   });
+
+  // Notifications (WebSocket, async-notification service) for the teacher area. teacher-profile
+  // sends one when a saved change is stored: the screens waiting after a save then read the
+  // profile once (refreshAfterSave), and an update nobody here started (an admin edit, a login
+  // email change) is read once too, instead of polling GET /teachers/me. Other notifications
+  // are shown as toasts.
+  const [toasts, setToasts] = useState([]);
+  const notificationUserId = currentUser?.id ? String(currentUser.id) : null;
+  useEffect(() => {
+    if (!notificationUserId || mockApiEnabled) return undefined;
+    let toastId = 0;
+    setNotificationStatus(notificationSocketOpen);
+    connectNotificationSocket(notificationUserId, (notification) => {
+      const fromTeacherProfile =
+        notification?.appName === "teacher-profile" ||
+        /TEACHER_PROFILE/.test(String(notification?.function || "")) ||
+        (!notification?.appName && /teacher profile/i.test(String(notification?.message || "")));
+      if (fromTeacherProfile) {
+        if (signalProfileUpdated() === 0) {
+          fetchOwnTeacherProfile({ fresh: true }).catch((error) =>
+            console.warn("Couldn't read the profile after its update notification:", error),
+          );
+        }
+        return;
+      }
+      if (!notification?.message) return;
+      toastId += 1;
+      const id = toastId;
+      setToasts((prev) => [...prev, { id, message: notification.message, msgType: notification.msgType }]);
+    });
+    return () => {
+      setNotificationStatus(null);
+      disconnectNotificationSocket();
+    };
+  }, [notificationUserId]);
 
   // Applications and interviews (application service).
   const {
@@ -434,11 +473,12 @@ const TeacherLayout = () => {
       // profile page may have changed it since this layout loaded it).
       let existing = Array.isArray(teacherProfileRaw?.resumes) ? teacherProfileRaw.resumes : [];
       try {
-        const { data } = await getOwnTeacherProfile();
+        const data = await fetchOwnTeacherProfile({ fresh: true });
         if (Array.isArray(data?.resumes)) existing = data.resumes;
       } catch (error) {
         console.warn("Couldn't reload the profile before saving the resume; using the loaded copy.", error);
       }
+      const savedAt = saveStartedAt();
       try {
         await updateTeacherProfile({
           teacherId: teacherProfile?.teacherId || String(currentUser.id),
@@ -468,13 +508,13 @@ const TeacherLayout = () => {
           cause: error,
         });
       }
-      // Stored a moment after the 202: re-read until the new resume is there (PROFILE_REFRESH).
-      void refreshUntil(
-        async () => (await getOwnTeacherProfile()).data,
+      // Stored a moment after the 202: read once the update notification comes (else
+      // PROFILE_REFRESH polling) until the new resume is there.
+      void refreshAfterSave(
+        () => fetchOwnTeacherProfile({ fresh: true }),
         (data) => (data?.resumes || []).some((r) => String(r.resume_id || r.resumeId) === String(resume.id)),
-      ).then(({ result, done }) => {
-        if (done) applyTeacherProfile(result);
-      });
+        { since: savedAt },
+      );
     }
     setAddedResumes((prev) => [...prev, resume]);
     setSelectedResume(resume);
@@ -579,8 +619,10 @@ const TeacherLayout = () => {
   // Ends the signup-service session (POST /auth/logout) and clears "currentUser".
   const handleLogout = async () => {
     localStorage.removeItem("userName");
+    // To the website home page first: ending the session while still on a protected page
+    // would make its route guard send the user to /login instead.
+    navigate("/", { replace: true });
     await signOut();
-    navigate("/login", { replace: true });
   };
 
   const outletCtx = {
@@ -826,6 +868,7 @@ const TeacherLayout = () => {
               </div>
             )}
           </div>
+          <NotificationToasts toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
           <div className={styles.outletWrap}>
             <Outlet context={outletCtx} />
           </div>

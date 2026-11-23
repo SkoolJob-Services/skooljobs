@@ -11,6 +11,7 @@ import { validateFields } from "../../lib/textValidation";
 import interviewsOptions from "../../../dropdown/School_module/interviews.json";
 import styles from "./styles/SchoolInterviews.module.css";
 
+import { PersonAvatar } from "../../components/PersonAvatar";
 const {
   Duration: DURATIONS_RAW,
   Round: ROUNDS_RAW,
@@ -78,7 +79,10 @@ const Label = ({ children, required }) => (
 const inputCls = styles.input;
 
 const SchoolInterviews = () => {
-  const { applicants, interviews, setInterviews, schoolName } = useOutletContext();
+  // Interviews live on the application (application service): the teacher sees them on their
+  // Interviews page.
+  const { applicants, interviews, saveInterview, setInterviewStatus } = useOutletContext();
+  const [saving, setSaving] = useState(false);
 
   const shortlisted = applicants.filter((a) => a.status === "Shortlisted");
 
@@ -100,7 +104,7 @@ const SchoolInterviews = () => {
 
   const openEdit = (iv) => {
     const applicant = applicants.find((a) => a.id === iv.candidateId) || {
-      name: iv.candidateName, jobTitle: iv.jobTitle, id: iv.candidateId,
+      name: iv.candidateName, jobTitle: iv.jobTitle, id: iv.candidateId, applicationId: iv.applicationId,
     };
     setSchedulingFor(applicant);
     setForm({
@@ -117,7 +121,7 @@ const SchoolInterviews = () => {
     setEditingId(iv.id);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.date || !form.time) { alert("Date and Time are required."); return; }
     if (form.mode === "Online" && platformNeedsLink(form.onlinePlatform) && !form.meetingLink) {
       alert(`Please add a Meeting Link for ${form.onlinePlatform} interviews.`);
@@ -132,30 +136,36 @@ const SchoolInterviews = () => {
       return;
     }
 
-    if (editingId) {
-      setInterviews((p) => p.map((iv) => iv.id === editingId ? { ...iv, ...form } : iv));
-    } else {
-      setInterviews((p) => [...p, {
-        id: Date.now(),
-        candidateId: schedulingFor.id,
-        candidateName: schedulingFor.name,
-        jobTitle: schedulingFor.jobTitle,
-        subject: schedulingFor.subject,
-        school: schoolName || "",
-        status: "Scheduled",
-        ...form,
-      }]);
+    const applicationId = schedulingFor.applicationId || schedulingFor.id;
+    setSaving(true);
+    try {
+      await saveInterview(applicationId, form, editingId);
+      setSchedulingFor(null);
+      setEditingId(null);
+      alert(
+        editingId
+          ? "Interview updated. The candidate sees the change on their Interviews page."
+          : "Interview scheduled. The candidate sees it on their Interviews page.",
+      );
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setSaving(false);
     }
-    setSchedulingFor(null);
-    setEditingId(null);
   };
 
-  const updateStatus = (id, status) =>
-    setInterviews((p) => p.map((iv) => iv.id === id ? { ...iv, status } : iv));
+  const updateStatus = async (id, status) => {
+    try {
+      await setInterviewStatus(id, status);
+    } catch (error) {
+      alert(error.message);
+    }
+  };
 
-  const deleteInterview = (id) => {
-    if (window.confirm("Remove this interview?"))
-      setInterviews((p) => p.filter((iv) => iv.id !== id));
+  // The service has no delete: the interview is cancelled (the candidate sees it as cancelled).
+  const deleteInterview = async (id) => {
+    if (!window.confirm("Cancel this interview? The candidate will see it as cancelled.")) return;
+    await updateStatus(id, "Cancelled");
   };
 
   return (
@@ -194,7 +204,7 @@ const SchoolInterviews = () => {
                     <tr key={a.id} className={styles.tr}>
                       <td className={styles.td}>
                         <div className={styles.candidateCell}>
-                          <img src={a.avatar} alt={a.name} className={styles.candidateAvatar} />
+                          <PersonAvatar src={a.avatar} name={a.name} className={styles.candidateAvatar} />
                           <span className={styles.candidateName}>{a.name}</span>
                         </div>
                       </td>
@@ -299,8 +309,9 @@ const SchoolInterviews = () => {
                           startIcon="xCircleIcon"
                           type="button"
                           onClick={() => deleteInterview(iv.id)}
+                          disabled={iv.status === "Cancelled"}
                         >
-                          Remove
+                          Cancel
                         </Button>
                       </div>
                     </td>
@@ -582,7 +593,9 @@ const SchoolInterviews = () => {
 
               <Button
                 type="button"
-                onClick={handleSubmit}
+                onClick={() => void handleSubmit()}
+                disabled={saving}
+                loading={saving}
               >
                 {editingId ? "Save Changes" : "Schedule Interview"}
               </Button>

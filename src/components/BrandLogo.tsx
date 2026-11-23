@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import logoUrl from "../assets/brand/skooljobs-logo.png";
 import styles from "./styles/BrandLogo.module.css";
 
@@ -9,10 +10,12 @@ interface BrandLogoProps {
   /** Logo height in px (width follows). */
   height?: number;
   className?: string;
+  /** Where a click on the logo goes: the website home page by default; null = not a link. */
+  to?: string | null;
 }
 
-/** The SkoolJobs – Mentors Pathway logo (src/assets/brand/skooljobs-logo.png). */
-export function BrandLogo({ onDark = false, height = 48, className }: BrandLogoProps) {
+/** The SkoolJobs – Mentors Pathway logo (src/assets/brand/skooljobs-logo.png), linking to the home page. */
+export function BrandLogo({ onDark = false, height = 48, className, to = "/" }: BrandLogoProps) {
   const img = (
     <img
       src={logoUrl}
@@ -21,6 +24,11 @@ export function BrandLogo({ onDark = false, height = 48, className }: BrandLogoP
       style={{ height }}
     />
   );
-  if (!onDark) return <span className={[styles.plain, className].filter(Boolean).join(" ")}>{img}</span>;
-  return <span className={[styles.badge, className].filter(Boolean).join(" ")}>{img}</span>;
+  const classes = [onDark ? styles.badge : styles.plain, className].filter(Boolean).join(" ");
+  if (!to) return <span className={classes}>{img}</span>;
+  return (
+    <Link to={to} className={`${classes} ${styles.link}`} aria-label="SkoolJobs home">
+      {img}
+    </Link>
+  );
 }

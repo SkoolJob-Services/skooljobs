@@ -119,11 +119,18 @@ export const mockApplicationService = {
     return accepted("Status updated.");
   },
 
-  async scheduleInterview({ application_id, interview }) {
+  // Like the real ScheduleInterviewCommand: the interview fields are on the command itself.
+  async scheduleInterview({ application_id, interview, ...fields }) {
     await delay();
     const list = loadApplications();
     const app = find(list, application_id);
-    const scheduled = { ...interview, interview_id: crypto.randomUUID(), status: "Scheduled", created_at: nowIso() };
+    const scheduled = {
+      ...(interview || fields),
+      interview_id: crypto.randomUUID(),
+      status: "Scheduled",
+      scheduled_by_user_id: callerId(),
+      created_at: nowIso(),
+    };
     app.interviews = [...(app.interviews || []), scheduled];
     app.interview_count = app.interviews.length;
     app.next_interview = scheduled;

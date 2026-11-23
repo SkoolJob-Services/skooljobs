@@ -11,7 +11,7 @@ function AuthLayout({ children, title, activeTab = 'candidate', onTabChange }) {
         <div className={styles.leftPanel}>
           <div>
             <Link to="/" className={styles.brandLink} aria-label="SkoolJobs home">
-              <BrandLogo onDark height={56} />
+              <BrandLogo onDark height={56} to={null} />
             </Link>
             <h1 className={styles.title}>
               {title}
